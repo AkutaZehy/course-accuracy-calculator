@@ -1,0 +1,1929 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>course-accuracy-calculator</title>
+<style>
+  @font-face {
+    font-family: 'SourceHanSansLite';
+    src: url('resources/SourceHanSansLite.ttf');
+    font-weight: 100 1000;
+  }
+  :root {
+    color-scheme: dark;
+    --bg: #101113;
+    --ink: #e8e8e4;
+    --dim: #8a8d92;
+    --hair: #26292d;
+    --hair-strong: #3a3e44;
+    --accent: #da291c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'SourceHanSansLite', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-weight: 400;
+    background: var(--bg); color: var(--ink);
+    margin: 0; padding: 48px 32px; max-width: 1080px; margin-inline: auto;
+    font-size: 16px; line-height: 1.65;
+  }
+  h1 { font-size: 40px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line-height: 1.2; }
+  h1 .sub { font-size: 15px; font-weight: 400; color: var(--dim); margin-left: 14px; letter-spacing: 0.08em; }
+  .sec { font-size: 14px; font-weight: 400; color: var(--dim); letter-spacing: 0.18em;
+    border-bottom: 1px solid var(--hair-strong); padding-bottom: 7px; margin: 48px 0 16px; }
+  .sec b { color: var(--ink); font-weight: 400; margin-right: 10px; }
+
+  #dropzone { border: 1px dashed var(--hair-strong); padding: 28px; text-align: center; margin-top: 20px; }
+  #dropzone.over { border-color: var(--accent); }
+  #dropzone p { margin: 4px 0; color: var(--dim); }
+  /* 竖排：导入长文件名只影响自己的行，不推挤另一项 */
+  label.file { display: flex; align-items: baseline; width: fit-content; max-width: 100%;
+    margin: 10px auto; padding: 8px 18px; border: 1px solid var(--hair-strong); cursor: pointer; }
+  label.file:hover { border-color: var(--ink); }
+  label.file input { display: none; }
+  label.file span.name { color: var(--dim); margin-left: 10px; font-size: 14px;
+    max-width: 34em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #results { display: none; }
+  .meta-line { margin: 3px 0; }
+  #md5.ok { color: var(--dim); } #md5.bad { color: var(--accent); font-weight: 700; }
+
+  table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+  th { font-weight: 400; font-size: 13px; color: var(--dim); letter-spacing: 0.12em;
+    text-align: left; border-bottom: 1px solid var(--hair-strong); padding: 0 14px 7px 0; }
+  td { border-bottom: 1px solid var(--hair); padding: 10px 14px 10px 0; vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .sub { color: var(--dim); font-size: 14px; }
+  .hint { color: var(--dim); font-size: 14px; }
+
+  .mod-chip { display: inline-block; padding: 4px 12px; border: 1px solid var(--hair-strong);
+    font-size: 14px; margin: 2px 8px 2px 0; letter-spacing: 0.04em; }
+  .mod-chip.ease, .mod-chip.uncontrollable, .mod-chip.auto { border-color: var(--accent); color: #ff6f63; }
+  .mod-chip.rate { border-color: var(--hair-strong); color: var(--dim); }
+
+  .detail-card { border: 1px solid var(--hair); padding: 16px 20px; margin: 12px 0; }
+  .detail-title { font-weight: 700; margin-bottom: 8px; }
+
+  .verdict { padding: 10px 14px; border: 1px solid var(--hair-strong); margin: 6px 0; }
+  .verdict.pass { border-left: 3px solid var(--ink); }
+  .verdict.fail { border-left: 3px solid var(--accent); color: var(--ink); }
+  .verdict.fail b { color: var(--accent); }
+  #pack-name { font-weight: 700; }
+
+  button { background: none; color: var(--ink); border: 1px solid var(--hair-strong);
+    padding: 9px 22px; cursor: pointer; margin-right: 10px; font-family: inherit; font-size: 15px; }
+  button:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+</style>
+</head>
+<body>
+<h1>course-accuracy-calculator<span class="sub">stb / stb-SV2 / lzr / Malody C判 / B判</span></h1>
+
+<div id="dropzone">
+  <p>把 <b>.osu 谱面</b> 和 <b>.osr 回放</b> 两个文件拖到这里（或分别选择）</p>
+  <label class="file">选择谱面 .osu<span class="name" id="osu-name"></span><input type="file" id="osu-input" accept=".osu"></label>
+  <label class="file">选择回放 .osr<span class="name" id="osr-name"></span><input type="file" id="osr-input" accept=".osr"></label>
+</div>
+
+<div id="results">
+  <div class="sec"><b>01</b>文件</div>
+  <p class="meta-line" id="map-info"></p>
+  <p class="meta-line" id="map-meta"></p>
+  <p class="meta-line" id="replay-info"></p>
+  <p class="meta-line" id="mods-line"></p>
+  <p class="meta-line" id="md5"></p>
+
+  <div class="sec"><b>02</b>准确率（整谱）</div>
+  <table><thead><tr><th>判定体系</th><th>acc</th><th>判定数</th></tr></thead><tbody id="acc-body"></tbody></table>
+
+  <div class="sec"><b>03</b>细值（判定区间与计数）<span class="hint" style="margin-left:12px">段位包按其门槛体系；未分类谱显示全部体系</span></div>
+  <div id="details"></div>
+
+  <div class="sec"><b>04</b>lzr 对账（重判 vs 回放内嵌计数）</div>
+  <div id="reconcile"></div>
+
+  <div class="sec"><b>05</b>段位判定</div>
+  <div id="pack-box">
+    <p>段位包：<span id="pack-name"></span></p>
+    <p class="meta-line">难度：<span id="pack-diff"></span></p>
+    <div id="verdicts"></div>
+    <div class="sec"><b>06</b>分段（单曲 / 累计 sumup）</div>
+    <div id="sections"></div>
+  </div>
+
+  <div class="sec"><b>07</b>导出</div>
+  <button id="copy-text">复制文本报告</button>
+  <button id="copy-json">复制 JSON</button>
+</div>
+
+<script>
+// ==== src/vendor/lzmaD.js ====
+///NOTE: This file was generated by minify.js from lzma_worker.js. Do not modify.
+
+/// © 2015 Nathan Rugg <nmrugg@gmail.com> | MIT
+/// See LICENSE for more details.
+
+/* jshint noarg:true, boss:true, unused:strict, strict:true, undef:true, noarg: true, forin:true, evil:true, newcap:false, -W041, -W021, worker:true, browser:true, node:true */
+
+/* global setImmediate, setTimeout, window, onmessage */
+
+
+
+var LZMA = (function () {
+    
+    "use strict";
+    
+    var 
+        /** ds */
+        action_decompress = 2,
+        /** de */
+        action_progress   = 3,
+        wait = typeof setImmediate == "function" ? setImmediate : setTimeout,
+        __4294967296 = 4294967296,
+        N1_longLit = [4294967295, -__4294967296],
+        
+        P0_longLit = [0, 0],
+        P1_longLit = [1, 0];
+    
+    function update_progress(percent, cbn) {
+        postMessage({
+            action: action_progress,
+            cbn: cbn,
+            result: percent
+        });
+    }
+    
+    function initDim(len) {
+        ///NOTE: This is MUCH faster than "new Array(len)" in newer versions of v8 (starting with Node.js 0.11.15, which uses v8 3.28.73).
+        var a = [];
+        a[len - 1] = undefined;
+        return a;
+    }
+    
+    function add(a, b) {
+        return create(a[0] + b[0], a[1] + b[1]);
+    }
+    
+    
+    
+    function compare(a, b) {
+        var nega, negb;
+        if (a[0] == b[0] && a[1] == b[1]) {
+            return 0;
+        }
+        nega = a[1] < 0;
+        negb = b[1] < 0;
+        if (nega && !negb) {
+            return -1;
+        }
+        if (!nega && negb) {
+            return 1;
+        }
+        if (sub(a, b)[1] < 0) {
+            return -1;
+        }
+        return 1;
+    }
+    
+    function create(valueLow, valueHigh) {
+        var diffHigh, diffLow;
+        valueHigh %= 1.8446744073709552E19;
+        valueLow %= 1.8446744073709552E19;
+        diffHigh = valueHigh % __4294967296;
+        diffLow = Math.floor(valueLow / __4294967296) * __4294967296;
+        valueHigh = valueHigh - diffHigh + diffLow;
+        valueLow = valueLow - diffLow + diffHigh;
+        while (valueLow < 0) {
+            valueLow += __4294967296;
+            valueHigh -= __4294967296;
+        }
+        while (valueLow > 4294967295) {
+            valueLow -= __4294967296;
+            valueHigh += __4294967296;
+        }
+        valueHigh = valueHigh % 1.8446744073709552E19;
+        while (valueHigh > 9223372032559808512) {
+            valueHigh -= 1.8446744073709552E19;
+        }
+        while (valueHigh < -9223372036854775808) {
+            valueHigh += 1.8446744073709552E19;
+        }
+        return [valueLow, valueHigh];
+    }
+    
+    
+    function fromInt(value) {
+        if (value >= 0) {
+            return [value, 0];
+        } else {
+            return [value + __4294967296, -__4294967296];
+        }
+    }
+    
+    function lowBits_0(a) {
+        if (a[0] >= 2147483648) {
+            return ~~Math.max(Math.min(a[0] - __4294967296, 2147483647), -2147483648);
+        } else {
+            return ~~Math.max(Math.min(a[0], 2147483647), -2147483648);
+        }
+    }
+    
+    
+    function sub(a, b) {
+        return create(a[0] - b[0], a[1] - b[1]);
+    }
+    
+    function $ByteArrayInputStream(this$static, buf) {
+        this$static.buf = buf;
+        this$static.pos = 0;
+        this$static.count = buf.length;
+        return this$static;
+    }
+    
+    /** ds */
+    function $read(this$static) {
+        if (this$static.pos >= this$static.count)
+            return -1;
+        return this$static.buf[this$static.pos++] & 255;
+    }
+    /** de */
+    
+    
+    function $ByteArrayOutputStream(this$static) {
+        this$static.buf = initDim(32);
+        this$static.count = 0;
+        return this$static;
+    }
+    
+    function $toByteArray(this$static) {
+        var data = this$static.buf;
+        data.length = this$static.count;
+        return data;
+    }
+    
+    
+    
+    function $write_0(this$static, buf, off, len) {
+        arraycopy(buf, off, this$static.buf, this$static.count, len);
+        this$static.count += len;
+    }
+    
+    
+    
+    function arraycopy(src, srcOfs, dest, destOfs, len) {
+        for (var i = 0; i < len; ++i) {
+            dest[destOfs + i] = src[srcOfs + i];
+        }
+    }
+    
+    
+    
+    /** ds */
+    function $init_0(this$static, input, output) {
+        var decoder,
+            hex_length = "",
+            i,
+            properties = [],
+            r,
+            tmp_length;
+        
+        for (i = 0; i < 5; ++i) {
+            r = $read(input);
+            if (r == -1)
+                throw new Error("truncated input");
+            properties[i] = r << 24 >> 24;
+        }
+        
+        decoder = $Decoder({});
+        if (!$SetDecoderProperties(decoder, properties)) {
+            throw new Error("corrupted input");
+        }
+        for (i = 0; i < 64; i += 8) {
+            r = $read(input);
+            if (r == -1)
+                throw new Error("truncated input");
+            r = r.toString(16);
+            if (r.length == 1) r = "0" + r;
+            hex_length = r + "" + hex_length;
+        }
+        
+        /// Was the length set in the header (if it was compressed from a stream, the length is all f"s).
+        if (/^0+$|^f+$/i.test(hex_length)) {
+            /// The length is unknown, so set to -1.
+            this$static.length_0 = N1_longLit;
+        } else {
+            ///NOTE: If there is a problem with the decoder because of the length, you can always set the length to -1 (N1_longLit) which means unknown.
+            tmp_length = parseInt(hex_length, 16);
+            /// If the length is too long to handle, just set it to unknown.
+            if (tmp_length > 4294967295) {
+                this$static.length_0 = N1_longLit;
+            } else {
+                this$static.length_0 = fromInt(tmp_length);
+            }
+        }
+        
+        this$static.chunker = $CodeInChunks(decoder, input, output, this$static.length_0);
+    }
+    
+    function $LZMAByteArrayDecompressor(this$static, data) {
+        this$static.output = $ByteArrayOutputStream({});
+        $init_0(this$static, $ByteArrayInputStream({}, data), this$static.output);
+        return this$static;
+    }
+    /** de */
+    
+    /** ds */
+    function $CopyBlock(this$static, distance, len) {
+        var pos = this$static._pos - distance - 1;
+        if (pos < 0) {
+            pos += this$static._windowSize;
+        }
+        for (; len != 0; --len) {
+            if (pos >= this$static._windowSize) {
+                pos = 0;
+            }
+            this$static._buffer[this$static._pos++] = this$static._buffer[pos++];
+            if (this$static._pos >= this$static._windowSize) {
+                $Flush_0(this$static);
+            }
+        }
+    }
+    
+    function $Create_5(this$static, windowSize) {
+        if (this$static._buffer == null || this$static._windowSize != windowSize) {
+            this$static._buffer = initDim(windowSize);
+        }
+        this$static._windowSize = windowSize;
+        this$static._pos = 0;
+        this$static._streamPos = 0;
+    }
+    
+    function $Flush_0(this$static) {
+        var size = this$static._pos - this$static._streamPos;
+        if (!size) {
+            return;
+        }
+        $write_0(this$static._stream, this$static._buffer, this$static._streamPos, size);
+        if (this$static._pos >= this$static._windowSize) {
+            this$static._pos = 0;
+        }
+        this$static._streamPos = this$static._pos;
+    }
+    
+    function $GetByte(this$static, distance) {
+        var pos = this$static._pos - distance - 1;
+        if (pos < 0) {
+            pos += this$static._windowSize;
+        }
+        return this$static._buffer[pos];
+    }
+    
+    function $PutByte(this$static, b) {
+        this$static._buffer[this$static._pos++] = b;
+        if (this$static._pos >= this$static._windowSize) {
+            $Flush_0(this$static);
+        }
+    }
+    
+    function $ReleaseStream(this$static) {
+        $Flush_0(this$static);
+        this$static._stream = null;
+    }
+    /** de */
+    
+    function GetLenToPosState(len) {
+        len -= 2;
+        if (len < 4) {
+            return len;
+        }
+        return 3;
+    }
+    
+    function StateUpdateChar(index) {
+        if (index < 4) {
+            return 0;
+        }
+        if (index < 10) {
+            return index - 3;
+        }
+        return index - 6;
+    }
+    
+    
+    /** ds */
+    function $Chunker(this$static, decoder) {
+        this$static.decoder = decoder;
+        this$static.encoder = null;
+        this$static.alive = 1;
+        return this$static;
+    }
+    /** de */
+    
+    function $processChunk(this$static) {
+        if (!this$static.alive) {
+            throw new Error("bad state");
+        }
+        
+        if (this$static.encoder) {
+            throw new Error("No encoding");
+            
+        } else {
+            /// co:throw new Error("No decoding");
+            /** ds */
+            $processDecoderChunk(this$static);
+            /** de */
+        }
+        return this$static.alive;
+    }
+    
+    /** ds */
+    function $processDecoderChunk(this$static) {
+        var result = $CodeOneChunk(this$static.decoder);
+        if (result == -1) {
+            throw new Error("corrupted input");
+        }
+        this$static.inBytesProcessed = N1_longLit;
+        this$static.outBytesProcessed = this$static.decoder.nowPos64;
+        if (result || compare(this$static.decoder.outSize, P0_longLit) >= 0 && compare(this$static.decoder.nowPos64, this$static.decoder.outSize) >= 0) {
+            $Flush_0(this$static.decoder.m_OutWindow);
+            $ReleaseStream(this$static.decoder.m_OutWindow);
+            this$static.decoder.m_RangeDecoder.Stream = null;
+            this$static.alive = 0;
+        }
+    }
+    /** de */
+    
+    
+    /** ds */
+    function $CodeInChunks(this$static, inStream, outStream, outSize) {
+        this$static.m_RangeDecoder.Stream = inStream;
+        $ReleaseStream(this$static.m_OutWindow);
+        this$static.m_OutWindow._stream = outStream;
+        $Init_1(this$static);
+        this$static.state = 0;
+        this$static.rep0 = 0;
+        this$static.rep1 = 0;
+        this$static.rep2 = 0;
+        this$static.rep3 = 0;
+        this$static.outSize = outSize;
+        this$static.nowPos64 = P0_longLit;
+        this$static.prevByte = 0;
+        return $Chunker({}, this$static);
+    }
+    
+    function $CodeOneChunk(this$static) {
+        var decoder2, distance, len, numDirectBits, posSlot, posState;
+        posState = lowBits_0(this$static.nowPos64) & this$static.m_PosStateMask;
+        if (!$DecodeBit(this$static.m_RangeDecoder, this$static.m_IsMatchDecoders, (this$static.state << 4) + posState)) {
+            decoder2 = $GetDecoder(this$static.m_LiteralDecoder, lowBits_0(this$static.nowPos64), this$static.prevByte);
+            if (this$static.state < 7) {
+                this$static.prevByte = $DecodeNormal(decoder2, this$static.m_RangeDecoder);
+            } else {
+                this$static.prevByte = $DecodeWithMatchByte(decoder2, this$static.m_RangeDecoder, $GetByte(this$static.m_OutWindow, this$static.rep0));
+            }
+            $PutByte(this$static.m_OutWindow, this$static.prevByte);
+            this$static.state = StateUpdateChar(this$static.state);
+            this$static.nowPos64 = add(this$static.nowPos64, P1_longLit);
+        } else {
+            if ($DecodeBit(this$static.m_RangeDecoder, this$static.m_IsRepDecoders, this$static.state)) {
+                len = 0;
+                if (!$DecodeBit(this$static.m_RangeDecoder, this$static.m_IsRepG0Decoders, this$static.state)) {
+                    if (!$DecodeBit(this$static.m_RangeDecoder, this$static.m_IsRep0LongDecoders, (this$static.state << 4) + posState)) {
+                        this$static.state = this$static.state < 7?9:11;
+                        len = 1;
+                    }
+                } else {
+                    if (!$DecodeBit(this$static.m_RangeDecoder, this$static.m_IsRepG1Decoders, this$static.state)) {
+                        distance = this$static.rep1;
+                    } else {
+                        if (!$DecodeBit(this$static.m_RangeDecoder, this$static.m_IsRepG2Decoders, this$static.state)) {
+                            distance = this$static.rep2;
+                        } else {
+                            distance = this$static.rep3;
+                            this$static.rep3 = this$static.rep2;
+                        }
+                        this$static.rep2 = this$static.rep1;
+                    }
+                    this$static.rep1 = this$static.rep0;
+                    this$static.rep0 = distance;
+                }
+                if (!len) {
+                    len = $Decode(this$static.m_RepLenDecoder, this$static.m_RangeDecoder, posState) + 2;
+                    this$static.state = this$static.state < 7?8:11;
+                }
+            } else {
+                this$static.rep3 = this$static.rep2;
+                this$static.rep2 = this$static.rep1;
+                this$static.rep1 = this$static.rep0;
+                len = 2 + $Decode(this$static.m_LenDecoder, this$static.m_RangeDecoder, posState);
+                this$static.state = this$static.state < 7?7:10;
+                posSlot = $Decode_0(this$static.m_PosSlotDecoder[GetLenToPosState(len)], this$static.m_RangeDecoder);
+                if (posSlot >= 4) {
+                    numDirectBits = (posSlot >> 1) - 1;
+                    this$static.rep0 = (2 | posSlot & 1) << numDirectBits;
+                    if (posSlot < 14) {
+                        this$static.rep0 += ReverseDecode(this$static.m_PosDecoders, this$static.rep0 - posSlot - 1, this$static.m_RangeDecoder, numDirectBits);
+                    } else {
+                        this$static.rep0 += $DecodeDirectBits(this$static.m_RangeDecoder, numDirectBits - 4) << 4;
+                        this$static.rep0 += $ReverseDecode(this$static.m_PosAlignDecoder, this$static.m_RangeDecoder);
+                        if (this$static.rep0 < 0) {
+                            if (this$static.rep0 == -1) {
+                                return 1;
+                            }
+                            return -1;
+                        }
+                    }
+                } else 
+                    this$static.rep0 = posSlot;
+            }
+            if (compare(fromInt(this$static.rep0), this$static.nowPos64) >= 0 || this$static.rep0 >= this$static.m_DictionarySizeCheck) {
+                return -1;
+            }
+            $CopyBlock(this$static.m_OutWindow, this$static.rep0, len);
+            this$static.nowPos64 = add(this$static.nowPos64, fromInt(len));
+            this$static.prevByte = $GetByte(this$static.m_OutWindow, 0);
+        }
+        return 0;
+    }
+    
+    function $Decoder(this$static) {
+        this$static.m_OutWindow = {};
+        this$static.m_RangeDecoder = {};
+        this$static.m_IsMatchDecoders = initDim(192);
+        this$static.m_IsRepDecoders = initDim(12);
+        this$static.m_IsRepG0Decoders = initDim(12);
+        this$static.m_IsRepG1Decoders = initDim(12);
+        this$static.m_IsRepG2Decoders = initDim(12);
+        this$static.m_IsRep0LongDecoders = initDim(192);
+        this$static.m_PosSlotDecoder = initDim(4);
+        this$static.m_PosDecoders = initDim(114);
+        this$static.m_PosAlignDecoder = $BitTreeDecoder({}, 4);
+        this$static.m_LenDecoder = $Decoder$LenDecoder({});
+        this$static.m_RepLenDecoder = $Decoder$LenDecoder({});
+        this$static.m_LiteralDecoder = {};
+        for (var i = 0; i < 4; ++i) {
+            this$static.m_PosSlotDecoder[i] = $BitTreeDecoder({}, 6);
+        }
+        return this$static;
+    }
+    
+    function $Init_1(this$static) {
+        this$static.m_OutWindow._streamPos = 0;
+        this$static.m_OutWindow._pos = 0;
+        InitBitModels(this$static.m_IsMatchDecoders);
+        InitBitModels(this$static.m_IsRep0LongDecoders);
+        InitBitModels(this$static.m_IsRepDecoders);
+        InitBitModels(this$static.m_IsRepG0Decoders);
+        InitBitModels(this$static.m_IsRepG1Decoders);
+        InitBitModels(this$static.m_IsRepG2Decoders);
+        InitBitModels(this$static.m_PosDecoders);
+        $Init_0(this$static.m_LiteralDecoder);
+        for (var i = 0; i < 4; ++i) {
+            InitBitModels(this$static.m_PosSlotDecoder[i].Models);
+        }
+        $Init(this$static.m_LenDecoder);
+        $Init(this$static.m_RepLenDecoder);
+        InitBitModels(this$static.m_PosAlignDecoder.Models);
+        $Init_8(this$static.m_RangeDecoder);
+    }
+    
+    function $SetDecoderProperties(this$static, properties) {
+        var dictionarySize, i, lc, lp, pb, remainder, val;
+        if (properties.length < 5)
+            return 0;
+        val = properties[0] & 255;
+        lc = val % 9;
+        remainder = ~~(val / 9);
+        lp = remainder % 5;
+        pb = ~~(remainder / 5);
+        dictionarySize = 0;
+        for (i = 0; i < 4; ++i) {
+            dictionarySize += (properties[1 + i] & 255) << i * 8;
+        }
+        ///NOTE: If the input is bad, it might call for an insanely large dictionary size, which would crash the script.
+        if (dictionarySize > 99999999 || !$SetLcLpPb(this$static, lc, lp, pb)) {
+            return 0;
+        }
+        return $SetDictionarySize(this$static, dictionarySize);
+    }
+    
+    function $SetDictionarySize(this$static, dictionarySize) {
+        if (dictionarySize < 0) {
+            return 0;
+        }
+        if (this$static.m_DictionarySize != dictionarySize) {
+            this$static.m_DictionarySize = dictionarySize;
+            this$static.m_DictionarySizeCheck = Math.max(this$static.m_DictionarySize, 1);
+            $Create_5(this$static.m_OutWindow, Math.max(this$static.m_DictionarySizeCheck, 4096));
+        }
+        return 1;
+    }
+    
+    function $SetLcLpPb(this$static, lc, lp, pb) {
+        if (lc > 8 || lp > 4 || pb > 4) {
+            return 0;
+        }
+        $Create_0(this$static.m_LiteralDecoder, lp, lc);
+        var numPosStates = 1 << pb;
+        $Create(this$static.m_LenDecoder, numPosStates);
+        $Create(this$static.m_RepLenDecoder, numPosStates);
+        this$static.m_PosStateMask = numPosStates - 1;
+        return 1;
+    }
+    
+    function $Create(this$static, numPosStates) {
+        for (; this$static.m_NumPosStates < numPosStates; ++this$static.m_NumPosStates) {
+            this$static.m_LowCoder[this$static.m_NumPosStates] = $BitTreeDecoder({}, 3);
+            this$static.m_MidCoder[this$static.m_NumPosStates] = $BitTreeDecoder({}, 3);
+        }
+    }
+    
+    function $Decode(this$static, rangeDecoder, posState) {
+        if (!$DecodeBit(rangeDecoder, this$static.m_Choice, 0)) {
+            return $Decode_0(this$static.m_LowCoder[posState], rangeDecoder);
+        }
+        var symbol = 8;
+        if (!$DecodeBit(rangeDecoder, this$static.m_Choice, 1)) {
+            symbol += $Decode_0(this$static.m_MidCoder[posState], rangeDecoder);
+        } else {
+            symbol += 8 + $Decode_0(this$static.m_HighCoder, rangeDecoder);
+        }
+        return symbol;
+    }
+    
+    function $Decoder$LenDecoder(this$static) {
+        this$static.m_Choice = initDim(2);
+        this$static.m_LowCoder = initDim(16);
+        this$static.m_MidCoder = initDim(16);
+        this$static.m_HighCoder = $BitTreeDecoder({}, 8);
+        this$static.m_NumPosStates = 0;
+        return this$static;
+    }
+    
+    function $Init(this$static) {
+        InitBitModels(this$static.m_Choice);
+        for (var posState = 0; posState < this$static.m_NumPosStates; ++posState) {
+            InitBitModels(this$static.m_LowCoder[posState].Models);
+            InitBitModels(this$static.m_MidCoder[posState].Models);
+        }
+        InitBitModels(this$static.m_HighCoder.Models);
+    }
+    
+    
+    function $Create_0(this$static, numPosBits, numPrevBits) {
+        var i, numStates;
+        if (this$static.m_Coders != null && this$static.m_NumPrevBits == numPrevBits && this$static.m_NumPosBits == numPosBits)
+            return;
+        this$static.m_NumPosBits = numPosBits;
+        this$static.m_PosMask = (1 << numPosBits) - 1;
+        this$static.m_NumPrevBits = numPrevBits;
+        numStates = 1 << this$static.m_NumPrevBits + this$static.m_NumPosBits;
+        this$static.m_Coders = initDim(numStates);
+        for (i = 0; i < numStates; ++i)
+            this$static.m_Coders[i] = $Decoder$LiteralDecoder$Decoder2({});
+    }
+    
+    function $GetDecoder(this$static, pos, prevByte) {
+        return this$static.m_Coders[((pos & this$static.m_PosMask) << this$static.m_NumPrevBits) + ((prevByte & 255) >>> 8 - this$static.m_NumPrevBits)];
+    }
+    
+    function $Init_0(this$static) {
+        var i, numStates;
+        numStates = 1 << this$static.m_NumPrevBits + this$static.m_NumPosBits;
+        for (i = 0; i < numStates; ++i) {
+            InitBitModels(this$static.m_Coders[i].m_Decoders);
+        }
+    }
+    
+    
+    function $DecodeNormal(this$static, rangeDecoder) {
+        var symbol = 1;
+        do {
+            symbol = symbol << 1 | $DecodeBit(rangeDecoder, this$static.m_Decoders, symbol);
+        } while (symbol < 256);
+        return symbol << 24 >> 24;
+    }
+    
+    function $DecodeWithMatchByte(this$static, rangeDecoder, matchByte) {
+        var bit, matchBit, symbol = 1;
+        do {
+            matchBit = matchByte >> 7 & 1;
+            matchByte <<= 1;
+            bit = $DecodeBit(rangeDecoder, this$static.m_Decoders, (1 + matchBit << 8) + symbol);
+            symbol = symbol << 1 | bit;
+            if (matchBit != bit) {
+                while (symbol < 256) {
+                    symbol = symbol << 1 | $DecodeBit(rangeDecoder, this$static.m_Decoders, symbol);
+                }
+            break;
+            }
+        } while (symbol < 256);
+        return symbol << 24 >> 24;
+    }
+    
+    function $Decoder$LiteralDecoder$Decoder2(this$static) {
+        this$static.m_Decoders = initDim(768);
+        return this$static;
+    }
+    
+    /** de */
+    
+    /** ds */
+    function $BitTreeDecoder(this$static, numBitLevels) {
+        this$static.NumBitLevels = numBitLevels;
+        this$static.Models = initDim(1 << numBitLevels);
+        return this$static;
+    }
+    
+    function $Decode_0(this$static, rangeDecoder) {
+        var bitIndex, m = 1;
+        for (bitIndex = this$static.NumBitLevels; bitIndex != 0; --bitIndex) {
+            m = (m << 1) + $DecodeBit(rangeDecoder, this$static.Models, m);
+        }
+        return m - (1 << this$static.NumBitLevels);
+    }
+    
+    function $ReverseDecode(this$static, rangeDecoder) {
+        var bit, bitIndex, m = 1, symbol = 0;
+        for (bitIndex = 0; bitIndex < this$static.NumBitLevels; ++bitIndex) {
+            bit = $DecodeBit(rangeDecoder, this$static.Models, m);
+            m <<= 1;
+            m += bit;
+            symbol |= bit << bitIndex;
+        }
+        return symbol;
+    }
+    
+    function ReverseDecode(Models, startIndex, rangeDecoder, NumBitLevels) {
+        var bit, bitIndex, m = 1, symbol = 0;
+        for (bitIndex = 0; bitIndex < NumBitLevels; ++bitIndex) {
+            bit = $DecodeBit(rangeDecoder, Models, startIndex + m);
+            m <<= 1;
+            m += bit;
+            symbol |= bit << bitIndex;
+        }
+        return symbol;
+    }
+    /** de */
+    
+    /** ds */
+    function $DecodeBit(this$static, probs, index) {
+        var newBound, prob = probs[index];
+        newBound = (this$static.Range >>> 11) * prob;
+        if ((this$static.Code ^ -2147483648) < (newBound ^ -2147483648)) {
+            this$static.Range = newBound;
+            probs[index] = prob + (2048 - prob >>> 5) << 16 >> 16;
+            if (!(this$static.Range & -16777216)) {
+                this$static.Code = this$static.Code << 8 | $read(this$static.Stream);
+                this$static.Range <<= 8;
+            }
+            return 0;
+        } else {
+            this$static.Range -= newBound;
+            this$static.Code -= newBound;
+            probs[index] = prob - (prob >>> 5) << 16 >> 16;
+            if (!(this$static.Range & -16777216)) {
+                this$static.Code = this$static.Code << 8 | $read(this$static.Stream);
+                this$static.Range <<= 8;
+            }
+            return 1;
+        }
+    }
+    
+    function $DecodeDirectBits(this$static, numTotalBits) {
+        var i, t, result = 0;
+        for (i = numTotalBits; i != 0; --i) {
+            this$static.Range >>>= 1;
+            t = this$static.Code - this$static.Range >>> 31;
+            this$static.Code -= this$static.Range & t - 1;
+            result = result << 1 | 1 - t;
+            if (!(this$static.Range & -16777216)) {
+                this$static.Code = this$static.Code << 8 | $read(this$static.Stream);
+                this$static.Range <<= 8;
+            }
+        }
+        return result;
+    }
+    
+    function $Init_8(this$static) {
+        this$static.Code = 0;
+        this$static.Range = -1;
+        for (var i = 0; i < 5; ++i) {
+            this$static.Code = this$static.Code << 8 | $read(this$static.Stream);
+        }
+    }
+    /** de */
+    
+    function InitBitModels(probs) {
+        for (var i = probs.length - 1; i >= 0; --i) {
+            probs[i] = 1024;
+        }
+    }
+    
+    /** ds */
+    function decode(utf) {
+        var i = 0, j = 0, x, y, z, l = utf.length, buf = [], charCodes = [];
+        for (; i < l; ++i, ++j) {
+            x = utf[i] & 255;
+            if (!(x & 128)) {
+                if (!x) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                charCodes[j] = x;
+            } else if ((x & 224) == 192) {
+                if (i + 1 >= l) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                y = utf[++i] & 255;
+                if ((y & 192) != 128) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                charCodes[j] = ((x & 31) << 6) | (y & 63);
+            } else if ((x & 240) == 224) {
+                if (i + 2 >= l) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                y = utf[++i] & 255;
+                if ((y & 192) != 128) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                z = utf[++i] & 255;
+                if ((z & 192) != 128) {
+                    /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                    return utf;
+                }
+                charCodes[j] = ((x & 15) << 12) | ((y & 63) << 6) | (z & 63);
+            } else {
+                /// It appears that this is binary data, so it cannot be converted to a string, so just send it back.
+                return utf;
+            }
+            if (j == 16383) {
+                buf.push(String.fromCharCode.apply(String, charCodes));
+                j = -1;
+            }
+        }
+        if (j > 0) {
+            charCodes.length = j;
+            buf.push(String.fromCharCode.apply(String, charCodes));
+        }
+        return buf.join("");
+    }
+    /** de */
+    
+    
+    function toDouble(a) {
+        return a[1] + a[0];
+    }
+    
+    
+    /** ds */
+    function decompress(byte_arr, on_finish, on_progress) {
+        var this$static = {},
+            percent,
+            cbn, /// A callback number should be supplied instead of on_finish() if we are using Web Workers.
+            has_progress,
+            len,
+            sync = typeof on_finish == "undefined" && typeof on_progress == "undefined";
+
+        if (typeof on_finish != "function") {
+            cbn = on_finish;
+            on_finish = on_progress = 0;
+        }
+        
+        on_progress = on_progress || function(percent) {
+            if (typeof cbn == "undefined")
+                return;
+            
+            return update_progress(has_progress ? percent : -1, cbn);
+        };
+        
+        on_finish = on_finish || function(res, err) {
+            if (typeof cbn == "undefined")
+                return;
+            
+            return postMessage({
+                action: action_decompress,
+                cbn: cbn,
+                result: res,
+                error: err
+            });
+        };
+
+        if (sync) {
+            this$static.d = $LZMAByteArrayDecompressor({}, byte_arr);
+            while ($processChunk(this$static.d.chunker));
+            return decode($toByteArray(this$static.d.output));
+        }
+        
+        try {
+            this$static.d = $LZMAByteArrayDecompressor({}, byte_arr);
+            
+            len = toDouble(this$static.d.length_0);
+            
+            ///NOTE: If the data was created via a stream, it will not have a length value, and therefore we can't calculate the progress.
+            has_progress = len > -1;
+            
+            on_progress(0);
+        } catch (err) {
+            return on_finish(null, err);
+        }
+        
+        function do_action() {
+            try {
+                var res, i = 0, start = (new Date()).getTime();
+                while ($processChunk(this$static.d.chunker)) {
+                    if (++i % 1000 == 0 && (new Date()).getTime() - start > 200) {
+                        if (has_progress) {
+                            percent = toDouble(this$static.d.chunker.decoder.nowPos64) / len;
+                            /// If about 200 miliseconds have passed, update the progress.
+                            on_progress(percent);
+                        }
+                        
+                        ///NOTE: This allows other code to run, like the browser to update.
+                        wait(do_action, 0);
+                        return 0;
+                    }
+                }
+                
+                on_progress(1);
+                
+                res = decode($toByteArray(this$static.d.output));
+                
+                /// delay so we don’t catch errors from the on_finish handler
+                wait(on_finish.bind(null, res), 0);
+            } catch (err) {
+                on_finish(null, err);
+            }
+        }
+        
+        ///NOTE: We need to wait to make sure it is always async.
+        wait(do_action, 0);
+    }
+    /** de */
+    
+    
+    /// If we're in a Web Worker, create the onmessage() communication channel.
+    ///NOTE: This seems to be the most reliable way to detect this.
+    if (typeof onmessage != "undefined" && (typeof window == "undefined" || typeof window.document == "undefined")) {
+        (function () {
+            /* jshint -W020 */
+            /// Create the global onmessage function.
+            onmessage = function (e) {
+                if (e && e.data) {
+                    
+                    /// co:if (e.data.action == action_compress) {
+                    /// co:    LZMA.compress(e.data.data, e.data.mode, e.data.cbn);
+                    /// co:}
+                    if (e.data.action == action_decompress) {
+                        LZMA.decompress(e.data.data, e.data.cbn);
+                    }
+                }
+            };
+        }());
+    }
+        
+    return {
+        
+        /// co:compress:   compress
+        decompress: decompress
+    };
+}());
+
+/// This is used by browsers that do not support web workers (and possibly Node.js).
+/// 本仓库改动：原行为 `this.LZMA = this.LZMA_WORKER = LZMA;`，改为 ESM 导出。
+const LZMA_DECOMP = LZMA;
+
+
+// ==== src/osr.js ====
+// .osr 回放解析：头部字段 + LZMA 解压 + 帧序列 → 每轨按下/松键事件。
+
+function lzmaDecompress(bytes) {
+  const r = LZMA_DECOMP.decompress(bytes); // 同步模式（无回调）
+  if (r instanceof Uint8Array) return r;
+  if (typeof r === 'string') {
+    const u = new Uint8Array(r.length);
+    for (let i = 0; i < r.length; i++) u[i] = r.charCodeAt(i) & 0xFF;
+    return u;
+  }
+  return Uint8Array.from(r);
+}
+
+function parseOsr(data) {
+  const u8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  let p = 0;
+  const u8r = () => u8[p++];
+  const i16r = () => { const v = dv.getInt16(p, true); p += 2; return v; };
+  const i32r = () => { const v = dv.getInt32(p, true); p += 4; return v; };
+  const u32r = () => { const v = dv.getUint32(p, true); p += 4; return v; };
+  const i64r = () => { const lo = dv.getUint32(p, true), hi = dv.getInt32(p + 4, true); p += 8; return (BigInt(hi) << 32n) | BigInt(lo >>> 0); };
+  const td = new TextDecoder();
+  function str() {
+    const flag = u8r();
+    if (flag === 0) return '';
+    if (flag !== 0x0b) throw new Error(`bad string flag 0x${flag.toString(16)} @${p - 1}`);
+    let len = 0, shift = 0;
+    for (;;) { const b = u8r(); len |= (b & 0x7f) << shift; if (!(b & 0x80)) break; shift += 7; }
+    const s = td.decode(u8.subarray(p, p + len)); p += len; return s;
+  }
+
+  const mode = u8r();
+  const version = i32r();
+  const beatmapMd5 = str();
+  const player = str();
+  const replayMd5 = str();
+  const c300 = i16r(), c100 = i16r(), c50 = i16r(), geki = i16r(), katu = i16r(), miss = i16r();
+  const score = i32r();
+  const maxCombo = i16r();
+  const perfect = u8r();
+  const mods = u32r();
+  const lifebar = str();
+  const timestamp = i64r();
+  const lzmaLen = i32r();
+  const lzmaBytes = u8.subarray(p, p + lzmaLen); p += lzmaLen;
+  const onlineId = i64r();
+
+  // lazer 追加块（version ≥ 30000001）：4 字节长度前缀 + LZMA(LegacyReplaySoloScoreInfo JSON)
+  // —— 官方回放设计：游戏本体从这里恢复 mod 设置（含变速 mod 的自定义倍率）、
+  //    判定统计、暂停时间戳、rank 等经典字段装不下的信息。见 ppy/osu LegacyScoreDecoder。
+  let scoreInfo = null;
+  if (p + 4 <= u8.length) {
+    const infoLen = dv.getUint32(p, true); p += 4;
+    if (infoLen > 0 && p + infoLen <= u8.length) {
+      try {
+        scoreInfo = JSON.parse(new TextDecoder().decode(lzmaDecompress(u8.subarray(p, p + infoLen))));
+      } catch { /* 非 lazer 尾块或损坏：忽略 */ }
+    }
+  }
+  // 变速倍率：尾块 mods 优先（settings.speed_change；无 settings = 该 mod 默认倍率——
+  // DC 默认 0.75）；位掩码不可靠（DC 等 lazer 独有 mod 不映射 legacy 位，Reg-10 实证）
+  const RATE_MOD_DEFAULT = { DT: 1.5, NC: 1.5, HT: 0.75, DC: 0.75 };
+  let scoreInfoRate = null;
+  if (scoreInfo && Array.isArray(scoreInfo.mods)) {
+    for (const m of scoreInfo.mods) {
+      if (RATE_MOD_DEFAULT[m.acronym] === undefined) continue;
+      const s = m.settings || {};
+      const key = Object.keys(s).find(k => /speed/i.test(k));
+      scoreInfoRate = (key && typeof s[key] === 'number' && s[key] > 0) ? s[key] : RATE_MOD_DEFAULT[m.acronym];
+      break;
+    }
+  }
+  // 尾块中位掩码未覆盖的 mod（lazer 独有，legacy 位装不下）
+  const TAIL_MOD_INFO = {
+    DC: { zh: 'Daycore 减速', kind: 'ease' },
+    DA: { zh: 'DifficultyAdjust 调整 HP/OD', kind: 'adjust' },
+  };
+  const bitHas = code => {
+    const map = { DT: 1 << 6, HT: 1 << 8, NC: 1 << 9, MIRROR: 1 << 30 };
+    return map[code] !== undefined && (mods & map[code]) !== 0;
+  };
+  const tailModsExtra = [];
+  if (scoreInfo && Array.isArray(scoreInfo.mods)) {
+    for (const m of scoreInfo.mods) {
+      const code = m.acronym;
+      if (bitHas(code) || (code === 'MR' && (mods & (1 << 30)))) continue;
+      const info = TAIL_MOD_INFO[code] || { zh: code, kind: null };
+      tailModsExtra.push({ code, zh: info.zh, kind: info.kind, settings: m.settings || null });
+    }
+  }
+
+  const raw = lzmaDecompress(lzmaBytes);
+  // 解压后为逗号分隔文本帧："w|x|y|z,…"；mania 的按键位掩码在 x 字段（z 恒 0）
+  const text = new TextDecoder().decode(raw);
+  let t = 0, prevKeys = 0;
+  const frames = [];
+  const presses = [];
+  const releases = [];
+  const MAX_COLS = 10;
+  for (const fs of text.split(',')) {
+    const parts = fs.split('|');
+    if (parts.length < 4) continue;
+    const w = Number(parts[0]);
+    if (!Number.isFinite(w)) continue;
+    if (w === -12345) break;
+    t += w;
+    const keys = Number(parts[1]) | 0;
+    frames.push({ t, keys });
+    for (let c = 0; c < MAX_COLS; c++) {
+      const now = (keys >> c) & 1, was = (prevKeys >> c) & 1;
+      if (now && !was) presses.push({ t, col: c });
+      else if (!now && was) releases.push({ t, col: c });
+    }
+    prevKeys = keys;
+  }
+  return {
+    mode, version, beatmapMd5, player, replayMd5,
+    counts: { c300, c100, c50, geki, katu, miss },
+    score, maxCombo, perfect, mods, lifebar, timestamp, onlineId,
+    scoreInfo, scoreInfoRate, tailModsExtra,
+    frames, presses, releases,
+  };
+}
+
+// mod 释义表（仅收录 osu!mania 中实际存在的 mod；TD/Relax/SpunOut/Autopilot 等
+// 非 mania mod 不在表内，位掩码命中也不会显示）。
+// kind：ease=降低难度、uncontrollable=不可控、auto=自动演奏、rate=变速（非降难）
+const MOD_INFO = {
+  NF: { bit: 1 << 0, zh: 'NoFail 免死', kind: 'ease' },
+  EZ: { bit: 1 << 1, zh: 'Easy 降低 HP/OD', kind: 'ease' },
+  HD: { bit: 1 << 3, zh: 'Hidden' },
+  HR: { bit: 1 << 4, zh: 'HardRock' },
+  SD: { bit: 1 << 5, zh: 'SuddenDeath' },
+  DT: { bit: 1 << 6, zh: 'DoubleTime 1.5×加速', kind: 'rate' },
+  HT: { bit: 1 << 8, zh: 'HalfTime/Daycore 0.75×减速', kind: 'ease' },
+  NC: { bit: 1 << 9, zh: 'NightCore 1.5×加速', kind: 'rate' },
+  FL: { bit: 1 << 10, zh: 'Flashlight' },
+  AT: { bit: 1 << 11, zh: 'Auto 自动演奏', kind: 'auto' },
+  PF: { bit: 1 << 14, zh: 'Perfect' },
+  K4: { bit: 1 << 15, zh: 'Key4' },
+  K5: { bit: 1 << 16, zh: 'Key5' },
+  K6: { bit: 1 << 17, zh: 'Key6' },
+  K7: { bit: 1 << 18, zh: 'Key7' },
+  K8: { bit: 1 << 19, zh: 'Key8' },
+  FI: { bit: 1 << 20, zh: 'FadeIn' },
+  RAND: { bit: 1 << 21, zh: 'Random 随机化排列', kind: 'uncontrollable' },
+  MIRROR: { bit: 1 << 30, zh: 'Mirror 镜像' },
+};
+
+function osrModsInfo(mods) {
+  const active = Object.entries(MOD_INFO)
+    .filter(([, m]) => (mods & m.bit) === m.bit)
+    .map(([code, m]) => ({ code, zh: m.zh, kind: m.kind || null }))
+    .filter(m => !(m.code === 'DT' && (mods & MOD_INFO.NC.bit))); // NC 位蕴含 DT 位
+  const rate = (mods & (MOD_INFO.DT.bit | MOD_INFO.NC.bit)) ? 1.5 : (mods & MOD_INFO.HT.bit) ? 0.75 : 1;
+  const mirror = !!(mods & MOD_INFO.MIRROR.bit);
+  const blocking = active
+    .filter(m => m.kind === 'ease' || m.kind === 'uncontrollable' || m.kind === 'auto')
+    .map(m => m.code);
+  return { list: active.map(m => m.code), active, rate, mirror, blocking };
+}
+
+
+// ==== src/osu.js ====
+// .osu 谱面解析：元数据 + mania 物件（列号、LN 起止）。
+function parseOsu(text) {
+  const meta = {};
+  const notes = [];
+  let section = '';
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith('//')) continue;
+    const m = line.match(/^\[(.+)\]$/);
+    if (m) { section = m[1]; continue; }
+    if (section === 'HitObjects') {
+      const parts = line.split(',');
+      if (parts.length < 4) continue;
+      const x = +parts[0], t = Math.round(+parts[2]), type = +parts[3];
+      if (!Number.isFinite(t) || !Number.isFinite(type)) continue;
+      if (type & 128) {
+        const end = Math.round(+parts[5].split(':')[0]);
+        notes.push({ x, t, end, ln: true });
+      } else {
+        notes.push({ x, t, ln: false });
+      }
+    } else if (section === 'Metadata' || section === 'Difficulty') {
+      const i = line.indexOf(':');
+      if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    }
+  }
+  const keys = Math.round(+meta.CircleSize || 4);
+  for (const n of notes) n.col = Math.min(keys - 1, Math.max(0, Math.floor(n.x * keys / 512)));
+  notes.sort((a, b) => a.t - b.t);
+  return {
+    title: meta.Title || '',
+    titleUnicode: meta.TitleUnicode || '',
+    artist: meta.Artist || '',
+    creator: meta.Creator || '',
+    version: meta.Version || '',
+    tags: (meta.Tags || '').toLowerCase(),
+    mode: +(meta.Mode || 0),
+    keys,
+    od: +meta.OverallDifficulty || 0,
+    beatmapId: +(meta.BeatmapID || 0),
+    setId: +(meta.BeatmapSetID || 0),
+    notes,
+  };
+}
+
+
+// ==== src/engines.js ====
+// 五体系重判引擎：对齐（含 Mirror/变速）→ 判定 → acc/分段/过段。
+// 判定语义来源见 TASK.md §2：osu wiki + ppy/osu ManiaHitWindows.cs + 用户定版。
+
+function perfectWindow(od) { return od <= 5 ? 22.4 - 0.6 * od : 24.9 - 1.1 * od; }
+
+// 回放帧时间 = 谱面(track)时间（与倍率无关，实证：对齐恒为恒等映射最优）。
+// 倍率来源（优先级）：.osr 尾块 LegacyReplaySoloScoreInfo 的 mods.settings.speed_change
+// （官方回放设计，Celestial 实测 0.7 且位掩码为 0）＞ 位掩码默认（DT/NC=1.5、HT=0.75，
+// 适用无尾块的 stable 回放）＞ 1。
+// 窗口（track 时间）：三套 osu 引擎 ×rate（lazer 源码 speedMultiplier；stable 墙钟固定窗
+// 折算到 track 亦为 ×rate）；Malody 用基础值（文章"1.5×速→窗×2/3"为墙钟口径，track 下抵消）。
+function osuWindows(engine, od, rate) {
+  const base = {
+    p: engine === 'stb' ? 16 : perfectWindow(od),
+    g: 64 - 3 * od, gd: 97 - 3 * od, ok: 127 - 3 * od, meh: 151 - 3 * od, miss: 188 - 3 * od,
+  };
+  const f = x => Math.floor(x * rate) + 0.5;
+  return { p: f(base.p), g: f(base.g), gd: f(base.gd), ok: f(base.ok), meh: f(base.meh), miss: f(base.miss) };
+}
+
+const MALODY_TABLE = {
+  C: { best: 36, cool: 76, good: 110, miss: 150 },
+  B: { best: 44, cool: 84, good: 118, miss: 150 },
+};
+function malodyWindows(level, rate) {
+  // Malody 判定窗为墙钟口径（文章：1.5×速→×2/3）；回放是 track 时间，折算后用基础值
+  void rate;
+  const w = MALODY_TABLE[level];
+  return { best: w.best, cool: w.cool, good: w.good, miss: w.miss };
+}
+
+function judgeOsuOffset(offset, w) {
+  const a = Math.abs(offset);
+  if (a <= w.p) return 'p';
+  if (a <= w.g) return 'g';
+  if (a <= w.gd) return 'gd';
+  if (a <= w.ok) return 'ok';
+  if (a <= w.meh) return 'meh';
+  return 'miss';
+}
+
+// lazer 尾判（DrawableHoldNoteTail 语义）：首次落在 ±1.5×miss 内的释放，
+// 偏移 /1.5 后按普通窗判定；此前出现过释放（远早于尾）= hold 断裂 → 封顶 MEH；
+// 无合格释放 → miss（含持穿后超窗晚释放）。
+function tailJudgement(n, w) {
+  if (n.press === null || n.relIdx < 0 || !n.rels) return 'miss';
+  const tailMiss = 1.5 * w.miss;
+  let broken = false;
+  for (let i = n.relIdx; i < n.rels.length; i++) {
+    const off = n.rels[i] - n.end;
+    if (off < -tailMiss) { broken = true; continue; }
+    if (off > tailMiss) break;
+    let j = judgeOsuOffset(off / 1.5, w);
+    if (broken && j !== 'meh' && j !== 'miss') j = 'meh';
+    return j;
+  }
+  return 'miss';
+}
+
+// 变速与镜像折算后的 play time 谱面物件（idx = 排序后原谱物件序号）
+function prepChart(beatmap, rate, mirror) {
+  // 回放 = track 时间，note 不折算；rate 仅影响判定窗口（见 osuWindows）；Mirror 翻转轨道
+  void rate;
+  return beatmap.notes.map((n, idx) => ({
+    idx,
+    chartT: n.t,
+    col: mirror ? beatmap.keys - 1 - n.col : n.col,
+    t: n.t,
+    end: n.ln ? n.end : undefined,
+    ln: n.ln,
+  }));
+}
+
+// 每轨对齐，按 lazer OrderedHitPolicy（notelock）语义：
+//   note i 的可击范围 = [t_i − miss, min(t_i + miss, t_{i+1}))（下一 note 的开始时间截断；
+//   轨内最后一个 note 上界为 t+miss）；press 依序给范围内最早的未判 note；
+//   已判 note 的 press 顺延给下一 note（若落其窗内）；无人可击的 press 忽略；
+//   未击 note 在 t+miss 自动 miss。LN 头另受"尾部晚窗后不可再起手"守卫。
+// LN 尾判按 lazer 源码语义（DrawableHoldNote/OnReleased + DrawableHoldNoteTail）：
+//   尾 = 首次"落在 ±1.5×miss 内的释放"的偏移 /1.5 后按普通窗判定；
+//   头未中或 body 断裂（释放远早于尾）→ 封顶 MEH；无合格释放 → miss；
+//   持穿后晚释放按偏移正常判（不自动 PERFECT）。
+function align(alignedNotes, presses, releases, missWin) {
+  const cols = new Map();
+  for (const n of alignedNotes) {
+    if (!cols.has(n.col)) cols.set(n.col, { notes: [], press: [], rel: [] });
+    cols.get(n.col).notes.push(n);
+  }
+  for (const e of presses) { const c = cols.get(e.col); if (c) c.press.push(e.t); }
+  for (const e of releases) { const c = cols.get(e.col); if (c) c.rel.push(e.t); }
+
+  for (const { notes, press, rel } of cols.values()) {
+    const judged = new Array(notes.length).fill(false);
+    const nextStart = notes.map((n, i) => (i + 1 < notes.length ? notes[i + 1].t : Infinity));
+    let cursor = 0;
+    for (const pt of press) {
+      // 推进：已判的、或可击范围已结束的（min(t+miss, next) ≤ pt）不再接收
+      while (cursor < notes.length && (judged[cursor] || Math.min(notes[cursor].t + missWin, nextStart[cursor]) <= pt)) cursor++;
+      if (cursor >= notes.length) continue;
+      // 从 cursor 起找首个未判且 pt ∈ [t−miss, min(t+miss, next)) 的 note
+      let j = -1;
+      for (let k = cursor; k < notes.length; k++) {
+        if (judged[k]) continue;
+        if (pt < notes[k].t - missWin) break; // 再往后更晚，窗不可能覆盖
+        if (pt >= Math.min(notes[k].t + missWin, nextStart[k])) continue; // 该 note 范围已过但未自动 miss（截断情形），看下一個
+        if (notes[k].ln && pt > notes[k].end + 1.5 * missWin) continue; // LN 尾部晚窗守卫
+        j = k; break;
+      }
+      if (j === -1) continue;
+      judged[j] = true;
+      const n = notes[j];
+      n.press = pt;
+      if (n.ln) {
+        let lo = 0, hi = rel.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (rel[mid] < pt) lo = mid + 1; else hi = mid; }
+        n.relIdx = lo;
+        n.rels = rel;
+        n.release = lo < rel.length ? rel[lo] : null;
+      }
+    }
+  }
+  for (const n of alignedNotes) if (n.press === undefined) { n.press = null; n.relIdx = -1; }
+}
+
+// —— 判定：每个物件产出 0~2 条判定记录 {idx, slot, j} ——
+
+function judgeOsuSystem(notes, w, engine) {
+  const recs = [];
+  const push = (idx, slot, j) => recs.push({ idx, slot, j });
+  for (const n of notes) {
+    if (!n.ln) {
+      push(n.idx, 's', n.press === null ? 'miss' : judgeOsuOffset(n.press - n.t, w));
+    } else if (engine === 'stb') {
+      if (n.press === null) { push(n.idx, 's', 'miss'); continue; }
+      const headErr = n.press - n.t;
+      const sumErr = headErr + (n.release - n.t); // 头+尾偏移之和（用户定版：合并单判）
+      if (n.release > n.end + w.meh) { push(n.idx, 's', 'miss'); continue; }
+      const ladder = [['p', 1.2, 2.4], ['g', 1.1, 2.2], ['gd', 1.0, 2.0], ['ok', 1.0, 2.0]];
+      let j = 'meh';
+      for (const [name, f1, f2] of ladder) {
+        if (Math.abs(headErr) <= f1 * w[name] && Math.abs(sumErr) <= f2 * w[name]) { j = name; break; }
+      }
+      if (n.release < n.end && j !== 'meh' && j !== 'miss') j = 'meh'; // 中途松手最高 MEH
+      push(n.idx, 's', j);
+    } else {
+      // sv2 / lzr：头尾独立双判（lazer 源码语义）
+      push(n.idx, 'h', n.press === null ? 'miss' : judgeOsuOffset(n.press - n.t, w));
+      push(n.idx, 't', tailJudgement(n, w));
+    }
+  }
+  return recs;
+}
+
+function judgeMalodySystem(notes, w) {
+  const recs = [];
+  const judge = off => {
+    const a = Math.abs(off);
+    if (a <= w.best) return 'best';
+    if (a <= w.cool) return 'cool';
+    if (a <= w.good) return 'good';
+    return 'miss';
+  };
+  for (const n of notes) {
+    if (!n.ln) {
+      recs.push({ idx: n.idx, slot: 's', j: n.press === null ? 'miss' : judge(n.press - n.t) });
+    } else {
+      recs.push({ idx: n.idx, slot: 'h', j: n.press === null ? 'miss' : judge(n.press - n.t) });
+      const tj = n.press === null || n.release === null
+        ? 'miss'
+        : n.release >= n.end ? 'best' : judge(n.release - n.end);
+      recs.push({ idx: n.idx, slot: 't', j: tj });
+    }
+  }
+  return recs;
+}
+
+function countOsu(recs) {
+  const c = { p: 0, g: 0, gd: 0, ok: 0, meh: 0, miss: 0 };
+  for (const r of recs) c[r.j]++;
+  return c;
+}
+function countMalody(recs) {
+  const c = { best: 0, cool: 0, good: 0, miss: 0 };
+  for (const r of recs) c[r.j]++;
+  return c;
+}
+
+function osuAcc(engine, c) {
+  const n = c.p + c.g + c.gd + c.ok + c.meh + c.miss;
+  const num = engine === 'stb'
+    ? 300 * (c.p + c.g) + 200 * c.gd + 100 * c.ok + 50 * c.meh
+    : engine === 'sv2'
+      ? 305 * c.p + 300 * c.g + 200 * c.gd + 100 * c.ok + 50 * c.meh
+      : 320 * c.p + 300 * c.g + 200 * c.gd + 100 * c.ok + 50 * c.meh;
+  const den = engine === 'stb' ? 300 * n : engine === 'sv2' ? 305 * n : 320 * n;
+  return { n, acc: den ? num / den : 0 };
+}
+
+function malodyAcc(c) {
+  const n = c.best + c.cool + c.good + c.miss;
+  return { n, acc: n ? (c.best + 0.75 * c.cool + 0.4 * c.good) / n : 0 };
+}
+
+// —— 分段（chart time）——
+// 已知包固定四曲三空隙：空隙多于 3 处时取**彼此时长最接近**的 3 处（簇选择，并列取四段方差最小）。
+// 依据 748 张 course 语料实测（2026-10-03）：同一张图内曲间空隙彼此接近、曲内长 break 偏离该簇
+// （FINAL-ETA 曲间 6.2~7.0s vs 曲内 11.0s；REFORM 4th 曲间 4.6~5.3s vs 曲内 10.7~11.6s）；
+// 而曲间标称随时包/图在 4.4~19.9s 漂移（LN v2 4.4s、Signicial Theta 18~20s），固定锚点不可行。
+// 未知 Course/Unknown Course 曲目数不固定（3/5 首皆可）：全量空隙各切一段。
+
+const GAP_MS = 4000;
+
+function buildSeg(starts, gapIdx) {
+  const b = [0, ...gapIdx, starts.length];
+  return {
+    split: true,
+    sections: b.slice(0, -1).map((_, i) => ({ from: b[i], to: b[i + 1] - 1 })),
+    gaps: gapIdx.map(g => starts[g] - starts[g - 1]),
+  };
+}
+
+function findGaps(starts, thresholdMs) {
+  const gapIdx = [];
+  for (let i = 1; i < starts.length; i++) {
+    if (starts[i] - starts[i - 1] > thresholdMs) gapIdx.push(i);
+  }
+  return gapIdx;
+}
+
+function pickCluster3(starts, gapIdx) {
+  if (gapIdx.length <= 3) return gapIdx;
+  const len = g => starts[g] - starts[g - 1];
+  let best = null;
+  const rec = (from, chosen) => {
+    if (chosen.length === 3) {
+      const lens = chosen.map(len);
+      const spread = Math.max(...lens) - Math.min(...lens);
+      const b = [0, ...chosen, starts.length];
+      const spans = [0, 1, 2, 3].map(s => starts[b[s + 1] - 1] - starts[b[s]]);
+      const mean = (spans[0] + spans[1] + spans[2] + spans[3]) / 4;
+      const varr = spans.reduce((a, x) => a + (x - mean) ** 2, 0);
+      if (!best || spread < best.spread || (spread === best.spread && varr < best.varr)) {
+        best = { spread, varr, chosen };
+      }
+      return;
+    }
+    for (let i = from; i <= gapIdx.length - (3 - chosen.length); i++) rec(i + 1, [...chosen, gapIdx[i]]);
+  };
+  rec(0, []);
+  return best.chosen;
+}
+
+function segment(beatmap, thresholdMs = GAP_MS) {
+  const starts = beatmap.notes.map(n => n.t);
+  const gapIdx = findGaps(starts, thresholdMs);
+  if (!gapIdx.length) return { split: false, sections: [{ from: 0, to: starts.length - 1 }], gaps: [] };
+  return buildSeg(starts, gapIdx);
+}
+
+// —— 段位包 ——
+// name 为展示名；match 收小写化的 title/creator。
+// REFORM FINAL 两变体同标题族，按标题 "(ext" 或 mapper CloverWisp 区分（Ext. 须先于 FINAL 判）。
+
+const PACKS = [
+  {
+    id: 'malody3', name: 'Malody 4K Dan v3',
+    match: t => t.includes('malody 4k regular dan'),
+    thresholds: [{ sys: 'mc', min: 0.95, note: 'C判（电脑判）≥95%' }, { sys: 'mb', min: 0.95, note: 'B判（手机判）≥95%' }],
+  },
+  {
+    id: 'reform-ext', name: 'osu!mania 4K Dan ~ REFORM ~ FINAL (Ext.) (CloverWisp)',
+    match: (t, c) => t.includes('dan ~ reform') && t.includes('final') && (t.includes('(ext') || c.includes('cloverwisp')),
+    thresholds: [{ sys: 'stb', min: 0.96, note: 'REFORM 96%（intro 95%，FINAL 沿用）' }],
+  },
+  {
+    id: 'reform-final', name: 'osu!mania 4K Dan ~ REFORM ~ FINAL (Thaumiel)',
+    match: t => t.includes('dan ~ reform') && t.includes('final'),
+    thresholds: [{ sys: 'stb', min: 0.96, note: 'REFORM 96%（intro 95%，FINAL 沿用）' }],
+  },
+  {
+    id: 'reform', name: 'osu!mania 4K Dan ~ REFORM (DDMythical)',
+    // 含 Thaumiel 等托管的 DDMythical 谱（如 "1st Pack (Thaumiel)"）——发布者≠作者，仍归 DDMythical
+    match: t => t.includes('dan ~ reform'),
+    thresholds: [{ sys: 'stb', min: 0.96, note: 'REFORM 96%（intro 95%）' }],
+  },
+  {
+    id: 'signicial', name: "osu!mania 4K Dan: Signicial's Courses",
+    match: t => t.includes('dan: signicial'),
+    thresholds: [{ sys: 'stb', min: 0.96, note: 'Signicial 合格 96%（进阶/精通分档待细化）' }],
+  },
+  {
+    id: 'ln2', name: 'osu!mania 4K LN Dan Courses v2',
+    // 弱化：不带 v2 的 "4K LN Dan Courses - EXTRA -" 同门四曲谱（2026-10-03 用户定版）；
+    // xfpsb "4K LN Advanced Dan Course Maps" 不含此子串，不受影响
+    match: t => t.includes('4k ln dan courses'),
+    thresholds: [{ sys: 'sv2', min: 0.97, note: 'LN v2 97%（ScoreV2 口径，2023-01-26 起）' }],
+  },
+  {
+    id: 'celestial', name: 'Dan: Celestial',
+    match: t => t.includes('dan: celestial'),
+    thresholds: [{ sys: 'stb', min: 0.97, note: 'Celestial stable ≥97%' }, { sys: 'lzr', min: 0.96, note: 'Celestial lazer ≥96%' }],
+    diffFromTitle: /dan:\s*celestial\s+-(.+?)-/i, // 全单曲包：难度取自标题（-Ascension I- → Ascension I）
+  },
+];
+
+function matchPack(title, creator = '') {
+  return PACKS.find(pk => pk.match(title.toLowerCase(), creator.toLowerCase())) || null;
+}
+
+// Course 分类（2026-10-03 口径）：
+// 已知包 → pack；未知但带 Course 标识（词边界 Course/Dans 且含英文冒号或 ~，Dance 不误中）→ course；
+// 无标识但有 >4s 空隙 → unknown-course；两者皆无 → unknown-regular（不分段）。
+const COURSE_MARK = /\b(courses?|dans?)\b/i;
+
+function categorize(title, creator, hasGaps) {
+  const pack = matchPack(title, creator);
+  if (pack) return { category: 'pack', pack, name: pack.name };
+  if (COURSE_MARK.test(title) && /[:~]/.test(title)) {
+    return { category: 'course', pack: null, name: 'Course · ' + title.trim() };
+  }
+  if (hasGaps) return { category: 'unknown-course', pack: null, name: 'Unknown Course' };
+  return { category: 'unknown-regular', pack: null, name: 'Unknown Regular' };
+}
+
+// 难度名：默认取谱面 [Version]；Celestial 特例从标题取
+function difficultyOf(cat, beatmap) {
+  if (cat.pack && cat.pack.diffFromTitle) {
+    const m = cat.pack.diffFromTitle.exec(beatmap.title);
+    if (m) return m[1].trim();
+  }
+  return beatmap.version;
+}
+
+// 谱面级分类+分段（无需回放）：已知包取彼此最接近的 3 处空隙切四段，未知类按全量空隙，无空隙即单曲
+function classify(beatmap) {
+  const starts = beatmap.notes.map(n => n.t);
+  const gapIdx = findGaps(starts, GAP_MS);
+  const cat = categorize(beatmap.title, beatmap.creator, gapIdx.length > 0);
+  const difficulty = difficultyOf(cat, beatmap);
+  const seg = !gapIdx.length
+    ? { split: false, sections: [{ from: 0, to: starts.length - 1 }], gaps: [] }
+    : buildSeg(starts, cat.category === 'pack' ? pickCluster3(starts, gapIdx) : gapIdx);
+  return { category: cat.category, pack: cat.pack, courseName: cat.name, difficulty, seg };
+}
+
+// —— 主入口 ——
+
+function judge(beatmap, replay, modsInfo) {
+  const mirror = modsInfo.mirror;
+  // 倍率：osr 尾块 mods.settings.speed_change（lazer 官方回放设计）优先；
+  // 无尾块（stable 回放）按位掩码默认——stable 的 DT/HT 本就是固定 1.5/0.75
+  const rate = replay.scoreInfoRate != null ? replay.scoreInfoRate
+    : modsInfo.list.includes('NC') || modsInfo.list.includes('DT') ? 1.5
+      : modsInfo.list.includes('HT') ? 0.75 : 1;
+  const notes = prepChart(beatmap, rate, mirror);
+  const wAlign = osuWindows('lzr', beatmap.od, rate); // 最宽 miss 窗做对齐
+  align(notes, replay.presses, replay.releases, wAlign.miss);
+
+  const systems = {};
+  for (const engine of ['stb', 'sv2', 'lzr']) {
+    const w = osuWindows(engine, beatmap.od, rate);
+    systems[engine] = { windows: w, recs: judgeOsuSystem(notes, w, engine) };
+  }
+  for (const lv of ['c', 'b']) {
+    const w = malodyWindows(lv.toUpperCase(), rate);
+    systems['m' + lv] = { windows: w, recs: judgeMalodySystem(notes, w) };
+  }
+
+  const acc = {};
+  for (const engine of ['stb', 'sv2', 'lzr']) {
+    const c = countOsu(systems[engine].recs);
+    systems[engine].counts = c;
+    acc[engine] = osuAcc(engine, c);
+  }
+  for (const lv of ['c', 'b']) {
+    const c = countMalody(systems['m' + lv].recs);
+    systems['m' + lv].counts = c;
+    acc['m' + lv] = malodyAcc(c);
+  }
+
+  // 分类与分段：已知包固定四曲（空隙取彼此最接近的 3 处）；未知 Course/Unknown Course 全量空隙切段；
+  // 无空隙 = 单曲；Unknown Regular 天然无空隙。
+  const { pack, category, courseName, difficulty, seg } = classify(beatmap);
+  const sectionStats = [];
+  if (seg.split) {
+    for (const s of seg.sections) {
+      const set = new Set();
+      for (let i = s.from; i <= s.to; i++) set.add(i);
+      const row = { range: [s.from, s.to] };
+      for (const k of Object.keys(systems)) {
+        const recs = systems[k].recs.filter(r => set.has(r.idx));
+        const c = k.startsWith('m') ? countMalody(recs) : countOsu(recs);
+        row[k] = { counts: c, ...(k.startsWith('m') ? malodyAcc(c) : osuAcc(k, c)) };
+      }
+      sectionStats.push(row);
+    }
+  }
+
+  return { pack, category, courseName, difficulty, systems, acc, seg, sectionStats, notes, effectiveRate: rate, rateFromScoreInfo: replay.scoreInfoRate != null };
+}
+
+
+// ==== src/ui.js ====
+// UI 逻辑：文件读入 → MD5 校验 → 引擎计算 → 渲染。
+// 本文件由 tools/build-ui.mjs 内联进 index.html（file:// 无法用 ES module）；
+// 顶层 DOM 绑定带环境守卫，使整包可在 Node 冒烟测试中执行。
+'use strict';
+
+function md5(bytes) {
+  // 公有领域算法的紧凑实现（Ronald Rivest MD5, RFC 1321）
+  function rl(n, c) { return (n << c) | (n >>> (32 - c)); }
+  function add(a, b) { return (a + b) | 0; }
+  const S = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+             5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+             4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+             6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  const K = new Int32Array(64);
+  for (let i = 0; i < 64; i++) K[i] = (Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296)) | 0;
+  const padLen = (((bytes.length + 8) >> 6) + 1) << 6;
+  const m = new Uint8Array(padLen);
+  m.set(bytes);
+  m[bytes.length] = 0x80;
+  const bitLen = bytes.length * 8;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(padLen - 8, bitLen >>> 0, true);
+  dv.setUint32(padLen - 4, Math.floor(bitLen / 4294967296), true);
+  let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+  for (let off = 0; off < padLen; off += 64) {
+    const M = new Int32Array(16);
+    for (let i = 0; i < 16; i++) M[i] = dv.getInt32(off + i * 4, true);
+    let A = a0, B = b0, C = c0, D = d0;
+    for (let i = 0; i < 64; i++) {
+      let F, g;
+      if (i < 16) { F = (B & C) | (~B & D); g = i; }
+      else if (i < 32) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
+      else if (i < 48) { F = B ^ C ^ D; g = (3 * i + 5) % 16; }
+      else { F = C ^ (B | ~D); g = (7 * i) % 16; }
+      F = add(add(add(F, A), K[i]), M[g]);
+      A = D; D = C; C = B;
+      B = add(B, rl(F, S[i]));
+    }
+    a0 = add(a0, A); b0 = add(b0, B); c0 = add(c0, C); d0 = add(d0, D);
+  }
+  const out = new DataView(new ArrayBuffer(16));
+  out.setInt32(0, a0, true); out.setInt32(4, b0, true); out.setInt32(8, c0, true); out.setInt32(12, d0, true);
+  let hex = '';
+  for (let i = 0; i < 16; i++) hex += (out.getUint8(i) >> 4).toString(16) + (out.getUint8(i) & 15).toString(16);
+  return hex;
+}
+
+const SYS_LABELS = [
+  ['stb', 'stb（stable / ScoreV1）'],
+  ['sv2', 'stb + ScoreV2（MAX=305）'],
+  ['lzr', 'lzr（lazer，MAX=320）'],
+  ['mc', 'Malody C判（电脑判）'],
+  ['mb', 'Malody B判（手机判）'],
+];
+
+function fmtAcc(x) { return (x * 100).toFixed(3) + '%'; }
+
+// 核心计算入口（Node 冒烟测试亦调用此函数）
+function compute(osuText, osrBytes) {
+  const beatmap = parseOsu(osuText);
+  const replay = parseOsr(new Uint8Array(osrBytes));
+  const base = osrModsInfo(replay.mods);
+  // 合并尾块独有 mod（位掩码装不下的 lazer mod，如 DC/DA）
+  const active = [...base.active, ...replay.tailModsExtra];
+  const mods = {
+    ...base,
+    active,
+    list: active.map(m => m.code),
+    blocking: active.filter(m => m.kind === 'ease' || m.kind === 'uncontrollable' || m.kind === 'auto').map(m => m.code),
+  };
+  const mapMd5 = md5(new TextEncoder().encode(osuText));
+  const md5Ok = mapMd5 === replay.beatmapMd5;
+  const res = judge(beatmap, replay, mods);
+  return { beatmap, replay, mods, mapMd5, md5Ok, ...res };
+}
+
+function buildReport(c) {
+  const { beatmap, replay, mods, md5Ok, acc, pack, category, courseName, difficulty, seg, sectionStats } = c;
+  const lines = [];
+  const titleLine = `${beatmap.artist} - ${beatmap.title} [${beatmap.version}]`;
+  lines.push(`谱面: ${titleLine}`);
+  lines.push(`回放: ${replay.player} @ ${new Date(Number(replay.timestamp / 10000n) - 62135596800000n).toISOString().slice(0, 19).replace('T', ' ')} | mods=[${mods.list.join(',') || '-'}] ${replay.version >= 30000000 ? '(lazer 回放)' : '(stable 回放)'}`);
+  lines.push(`MD5 配对: ${md5Ok ? '一致' : '不一致！'} | ${beatmap.keys}K OD${beatmap.od} 物量${beatmap.notes.length}（LN ${beatmap.notes.filter(n => n.ln).length}）`);
+  lines.push(`mods: ${mods.active.map(m => `${m.code}·${m.zh}`).join('，') || '无'}`);
+  lines.push('');
+  lines.push('== 准确率（整体）==');
+  for (const [k, label] of SYS_LABELS) lines.push(`  ${label}: ${fmtAcc(acc[k].acc)}`);
+  lines.push('');
+  lines.push('== 细值（判定区间 ±ms 与计数）==');
+  for (const k of detailSystems(pack)) {
+    const label = (SYS_LABELS.find(x => x[0] === k) || [k, k])[1];
+    const s = c.systems[k];
+    const tiers = k.startsWith('m') ? MAL_TIERS : OSU_TIERS;
+    lines.push(`  ${label}: ` + tiers.map(([tk, tn]) => `${tn} ±${(+s.windows[tk]).toFixed(1)}ms×${s.counts[tk]}`).join('，'));
+  }
+  lines.push('');
+  lines.push(`== 段位包: ${courseName} | 难度: ${difficulty || '-'} ==`);
+  if (pack) {
+    const notice = verdictNotice(mods);
+    if (notice) {
+      lines.push(`  ${notice}`);
+    } else {
+      for (const t of pack.thresholds) {
+        const got = acc[t.sys].acc;
+        lines.push(`  ${t.note}: ${fmtAcc(got)} → ${got >= t.min ? 'PASS' : 'FAIL'}`);
+      }
+    }
+  } else {
+    lines.push('  非已知段位包：仅输出各判定体系计算值');
+  }
+  if (seg.split) {
+    lines.push('');
+    lines.push(`== 分段（空隙 ${seg.gaps.map(g => (g / 1000).toFixed(1) + 's').join(', ')} → ${sectionStats.length} 段）==`);
+    for (const [k, label] of SYS_LABELS) {
+      const row = sectionStats.map((s, i) => `${fmtAcc(s[k].acc)}(累计${fmtAcc(cumAcc(sectionStats, k, i))})`);
+      lines.push(`  ${label}: ${row.join(' | ')}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+// 分段累计 acc（sumup）：把截至该段的判定计数合并后按体系公式整体计算
+function cumAcc(sectionStats, key, upto) {
+  if (key.startsWith('m')) {
+    const t = { best: 0, cool: 0, good: 0, miss: 0 };
+    for (let i = 0; i <= upto; i++) { const c = sectionStats[i][key].counts; t.best += c.best; t.cool += c.cool; t.good += c.good; t.miss += c.miss; }
+    return malodyAcc(t).acc;
+  }
+  const t = { p: 0, g: 0, gd: 0, ok: 0, meh: 0, miss: 0 };
+  for (let i = 0; i <= upto; i++) { const c = sectionStats[i][key].counts; for (const k in t) t[k] += c[k]; }
+  return osuAcc(key, t).acc;
+}
+
+const OSU_TIERS = [
+  ['p', 'MAX / PERFECT'], ['g', '300 / GREAT'], ['gd', '200 / GOOD'],
+  ['ok', '100 / OK'], ['meh', '50 / MEH'], ['miss', 'MISS'],
+];
+const MAL_TIERS = [['best', 'BEST'], ['cool', 'COOL'], ['good', 'GOOD'], ['miss', 'MISS']];
+
+// 细值：段位包 → 门槛相关体系；未分类 → 全部五体系。
+// 每个体系给出判定窗口（±ms，随 OD 算出的实际值）与各档计数。
+function detailSystems(pack) {
+  return pack ? [...new Set(pack.thresholds.map(t => t.sys))] : ['stb', 'sv2', 'lzr', 'mc', 'mb'];
+}
+
+function detailCard(c, k) {
+  const label = (SYS_LABELS.find(x => x[0] === k) || [k, k])[1];
+  const s = c.systems[k];
+  const isM = k.startsWith('m');
+  const tiers = isM ? MAL_TIERS : OSU_TIERS;
+  const rows = tiers.map(([tk, tn]) =>
+    `<tr><td>${tn}</td><td class="num">±${(+s.windows[tk]).toFixed(1)} ms</td><td class="num">${s.counts[tk]}</td></tr>`).join('');
+  return `<div class="detail-card"><div class="detail-title">${label} <span class="sub">acc ${fmtAcc(c.acc[k].acc)} · ${c.acc[k].n} 判定</span></div>` +
+    `<table><tr><th>判定</th><th>窗口</th><th>计数</th></tr>${rows}</table></div>`;
+}
+
+// 过段禁用闸：命中降低难度/不可控/自动类 mod 时不提供通过判断（各体系计算值照常输出）
+function verdictNotice(mods) {
+  if (!mods.blocking.length) return null;
+  const parts = mods.blocking.map(code => {
+    const m = mods.active.find(x => x.code === code);
+    return `${code}（${m ? m.zh.split(' ')[0] : ''}）`;
+  });
+  return `已使用 ${parts.join('、')}——属降低难度或不可控/自动类 mod，不提供过段判定；各体系计算值不受影响。`;
+}
+
+function render(c) {
+  const $ = id => document.getElementById(id);
+  $('map-info').textContent = `${c.beatmap.artist} - ${c.beatmap.title} [${c.beatmap.version}]`;
+  $('map-meta').textContent = `${c.beatmap.keys}K · OD ${c.beatmap.od} · 物量 ${c.beatmap.notes.length}（LN ${c.beatmap.notes.filter(n => n.ln).length}）`;
+  $('replay-info').textContent = `${c.replay.player} · mods [${c.mods.list.join(',') || '-'}] · ${c.replay.version >= 30000000 ? 'lazer' : 'stable'} 回放` +
+    (c.replay.scoreInfo ? ` · ${c.replay.scoreInfo.client_version}` : '') +
+    (c.replay.scoreInfo && Array.isArray(c.replay.scoreInfo.pauses) && c.replay.scoreInfo.pauses.length ? ` · 暂停 ${c.replay.scoreInfo.pauses.length} 次` : '');
+  const rateChips = [];
+  const rateModUsed = c.mods.active.some(m => ['DT', 'HT', 'NC'].includes(m.code));
+  if (c.replay.scoreInfoRate != null && !rateModUsed) {
+    rateChips.push(`<span class="mod-chip rate" title="倍率仅记录于 osr 尾块（LegacyReplaySoloScoreInfo），位掩码未含">变速 · 尾块倍率 ${c.replay.scoreInfoRate.toFixed(2)}×</span>`);
+  }
+  $('mods-line').innerHTML = [
+    ...c.mods.active.map(m => {
+      let zh = m.zh;
+      if (['DT', 'HT', 'NC'].includes(m.code) && c.effectiveRate !== undefined) {
+        zh = `${m.zh.split(' ')[0]} · 实测倍率 ${c.effectiveRate.toFixed(2)}×`;
+      }
+      return `<span class="mod-chip ${m.kind || ''}" title="${zh}">${m.code} · ${zh}</span>`;
+    }),
+    ...rateChips,
+  ].join(' ') || '<span class="mod-chip">无 mod</span>';
+  $('md5').textContent = c.md5Ok ? 'MD5 配对一致 ✓' : 'MD5 不一致 ✗（回放与谱面不是同一版本！）';
+  $('md5').className = c.md5Ok ? 'ok' : 'bad';
+
+  const accRows = SYS_LABELS.map(([k, label]) =>
+    `<tr><td>${label}</td><td class="num">${fmtAcc(c.acc[k].acc)}</td><td class="num">${c.acc[k].n}</td></tr>`).join('');
+  $('acc-body').innerHTML = accRows;
+
+  const detailKeys = detailSystems(c.pack);
+  $('details').innerHTML = detailKeys.map(k => detailCard(c, k)).join('');
+
+  const emb = c.replay.counts;
+  const lz = c.systems.lzr.counts;
+  const delta = [lz.p - emb.geki, lz.g - emb.c300, lz.gd - emb.katu, lz.ok - emb.c100, lz.meh - emb.c50, lz.miss - emb.miss];
+  $('reconcile').innerHTML =
+    `<table><tr><th></th><th>P/MAX</th><th>300</th><th>200</th><th>100</th><th>50</th><th>miss</th></tr>` +
+    `<tr><td>lzr 重判</td><td>${lz.p}</td><td>${lz.g}</td><td>${lz.gd}</td><td>${lz.ok}</td><td>${lz.meh}</td><td>${lz.miss}</td></tr>` +
+    `<tr><td>osr 内嵌</td><td>${emb.geki}</td><td>${emb.c300}</td><td>${emb.katu}</td><td>${emb.c100}</td><td>${emb.c50}</td><td>${emb.miss}</td></tr>` +
+    `<tr><td>Δ</td><td>${delta[0]}</td><td>${delta[1]}</td><td>${delta[2]}</td><td>${delta[3]}</td><td>${delta[4]}</td><td>${delta[5]}</td></tr></table>` +
+    `<p class="hint">密集谱存在 ±10ms 级判定时钟/回放时钟量化差，Δ 有小残差属已知局限（见 TASK.md §10）。</p>`;
+
+  $('pack-box').style.display = '';
+  $('pack-name').textContent = c.courseName;
+  $('pack-diff').textContent = c.difficulty || '-';
+  const notice = verdictNotice(c.mods);
+  if (!c.pack) {
+    $('verdicts').innerHTML = '<p class="hint">非已知段位包：仅输出五体系计算值，无过段判定。</p>';
+  } else if (notice) {
+    $('verdicts').innerHTML = `<div class="verdict fail">${notice}</div>`;
+  } else {
+    $('verdicts').innerHTML = c.pack.thresholds.map(t => {
+      const got = c.acc[t.sys].acc;
+      return `<div class="verdict ${got >= t.min ? 'pass' : 'fail'}">${t.note}：<b>${fmtAcc(got)}</b> → ${got >= t.min ? '通过' : '未通过'}</div>`;
+    }).join('');
+  }
+  $('sections').innerHTML = c.seg.split ? renderSections(c)
+    : c.category === 'unknown-regular'
+      ? '<p class="hint">无 Course 标识且无显著空隙，不分段。</p>'
+      : '<p class="hint">未检测到显著空隙，按该 Course 的单曲处理（不分段）。</p>';
+  $('results').style.display = 'block';
+  state.lastCompute = c;
+}
+
+function sectionHeader(sectionStats) {
+  return sectionStats.map((s, i) => `<th>段${i + 1}</th>`).join('');
+}
+
+function renderSections(c) {
+  const rows = SYS_LABELS.map(([k, label]) =>
+    `<tr><td>${label}</td>${c.sectionStats.map((s, i) => {
+      const cum = cumAcc(c.sectionStats, k, i);
+      return `<td class="num">${fmtAcc(s[k].acc)}<br><span class="sub">累计 ${fmtAcc(cum)}</span></td>`;
+    }).join('')}</tr>`).join('');
+  return `<table><tr><th>体系</th>${sectionHeader(c.sectionStats)}</tr>${rows}</table>`;
+}
+
+const state = { lastCompute: null };
+
+if (typeof document !== 'undefined') {
+  let osuFile = null, osrFile = null;
+
+  function tryCompute() {
+    if (osuFile && osrFile) {
+      Promise.all([osuFile.text(), osrFile.arrayBuffer()]).then(([t, buf]) => {
+        render(compute(t, buf));
+      }).catch(e => {
+        document.getElementById('md5').textContent = '解析失败：' + e.message;
+        document.getElementById('md5').className = 'bad';
+        document.getElementById('results').style.display = 'block';
+      });
+    }
+  }
+
+  function showFileName(key, file) {
+    const el = document.getElementById(key + '-name');
+    el.textContent = file ? file.name : '';
+    el.title = file ? file.name : '';
+  }
+
+  document.getElementById('osu-input').addEventListener('change', e => {
+    osuFile = e.target.files[0] || null;
+    showFileName('osu', osuFile);
+    tryCompute();
+  });
+  document.getElementById('osr-input').addEventListener('change', e => {
+    osrFile = e.target.files[0] || null;
+    showFileName('osr', osrFile);
+    tryCompute();
+  });
+
+  const drop = document.getElementById('dropzone');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('over');
+    for (const f of e.dataTransfer.files) {
+      if (f.name.toLowerCase().endsWith('.osu')) { osuFile = f; showFileName('osu', f); }
+      if (f.name.toLowerCase().endsWith('.osr')) { osrFile = f; showFileName('osr', f); }
+    }
+    tryCompute();
+  });
+
+  document.getElementById('copy-text').addEventListener('click', () => {
+    if (state.lastCompute) navigator.clipboard.writeText(buildReport(state.lastCompute)).then(
+      () => { document.getElementById('copy-text').textContent = '已复制'; },
+      () => {});
+  });
+  document.getElementById('copy-json').addEventListener('click', () => {
+    if (!state.lastCompute) return;
+    const c = state.lastCompute;
+    const out = {
+      beatmap: { title: c.beatmap.title, version: c.beatmap.version, keys: c.beatmap.keys, od: c.beatmap.od },
+      replay: { player: c.replay.player, mods: c.mods.list },
+      md5Ok: c.md5Ok,
+      acc: Object.fromEntries(Object.entries(c.acc).map(([k, v]) => [k, +(v.acc * 100).toFixed(4)])),
+      course: { category: c.category, name: c.courseName, difficulty: c.difficulty },
+      pack: c.pack ? { id: c.pack.id, name: c.pack.name, verdicts: c.pack.thresholds.map(t => ({ note: t.note, acc: +(c.acc[t.sys].acc * 100).toFixed(4), pass: c.acc[t.sys].acc >= t.min })) } : null,
+    };
+    navigator.clipboard.writeText(JSON.stringify(out, null, 2)).then(
+      () => { document.getElementById('copy-json').textContent = '已复制'; },
+      () => {});
+  });
+}
+
+</script>
+</body>
+</html>
