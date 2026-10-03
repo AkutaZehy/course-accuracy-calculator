@@ -39,11 +39,11 @@ osu!mania 段位成绩计算器：输入谱面（.osu）与回放（.osr），�
 
 ```
 node tools/build-ui.mjs    # src/ 模块内联生成 index.html（改 src 后须重跑）
-node test/harness.mjs      # 七份真实回放夹具：lzr 重判计数 vs 内嵌计数对账
+node test/harness.mjs      # 八份真实回放夹具：lzr 重判计数 vs 内嵌计数对账
 node test/smoke-ui.mjs     # bundle 冒烟：无 DOM 执行/双实现一致性/计数抽查/DOM id
 ```
 
-`references/` 为对账夹具。设计文档与全部规格决策见 [TASK.md](TASK.md)。
+`references/` 为本地对账夹具（含个人回放，不入库，见 `.gitignore`）。设计文档与全部规格决策见 [TASK.md](TASK.md)。
 
 ## 机制要点
 
@@ -86,5 +86,7 @@ https://www.bilibili.com/opus/1140164949285273625
 - [ppy/osu](https://github.com/ppy/osu) (MIT)
 - [LZMA-js](https://github.com/nmrugg/LZMA-js) (MIT，© 2015 Nathan Rugg)：`src/vendor/lzmaD.js`
 - [uzxn/acc](https://github.com/uzxn/acc) （物量表）
+- [Source Han Sans](https://github.com/adobe-fonts/source-han-sans) 思源黑体（SIL OFL 1.1）：`resources/SourceHanSansLite.ttf` 为其精简子集版，全文见 `resources/SourceHanSansLite-OFL.txt`
+- [LXGW Neo XiHei](https://github.com/lxgw/LxgwNeoXiHei) 霞鹜新晰黑（IPA Font License v1.0）：`resources/LXGWNeoXiHeiPlus.ttf` 备用字体，全文见 `resources/LXGWNeoXiHeiPlus-LICENSE.md`
 
 本项目以 [MIT](LICENSE) 许可发布。
