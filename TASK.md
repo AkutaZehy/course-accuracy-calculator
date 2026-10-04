@@ -31,10 +31,10 @@
 | **stb**（stable / ScoreV1） | MAX ±16 固定；300=64−3OD；200=97−3OD；100=127−3OD；50=151−3OD；miss=188−3OD。DT/HT 不缩放窗口。实际窗口较公式宽 0.5ms（hit error 四舍五入、上限截断） | LN = **头+尾偏移合并单判定**（两偏移求和后对双倍阈值，等价于均值对普通窗口；2026-10-03 用户定版：stable 从无尾判）：PERFECT 需头≤1.2×MAX上限且合计≤2.4×；GREAT 1.1/2.2；GOOD、OK 1/2；其余非 miss 为 MEH；中途松手最高 MEH；晚于 MEH 释放=miss。N = rice + LN | 分母 300N；MAX 计 300（与 300 同权） |
 | **stb (scorev2)**（stable 的 SV2 mod） | 同 stb，但 MAX 窗随 OD：OD≤5 → 22.4−0.6OD；OD≥5 → 24.9−1.1OD（OD8≈16.1） | 头尾独立判定，尾仅看释放误差、尾窗 ×1.5；中途松手尾封顶 MEH | 同 stb，但 MAX 权重=305（分子分母同步） |
 | **lzr**（lazer） | SV2 式（PERFECT 随 OD 等；开工时对 ppy/osu 源码 `ManiaHitWindows.cs` 核对） | 头尾独立双判定（references 七对实证：lazer 导出 osr 内嵌判定数 = rice+2×LN，7/7）；尾窗 ×1.5（文章注：松慢比松早宽 1.5 倍——不对称，实现时以客户端行为校准）；hold break 尾封顶 MEH 且不占额外判定 | (320·MAX+300·300+200·200+100·100+50·50) / 320N，N 含 LN 尾 |
-| **Malody C判**（电脑判，段位标准） | BEST ±36 / COOL ±76 / GOOD ±110 / MISS ±150（固定，不随谱面；萌百 A-E 表 C 列） | 头尾各计一次判定（尾窗暂按同表，待实机校准） | (BEST + 0.75·COOL + 0.4·GOOD) / N |
-| **Malody B判**（手机判，段位标准） | BEST ±44 / COOL ±84 / GOOD ±118 / MISS ±150（同表 B 列） | 同上 | 同上 |
+| **Malody C判**（电脑判，段位标准） | BEST ±44 / COOL ±84 / GOOD ±129 / MISS ±171+（固定，不随谱面；2026-10-05 定版：用户提供的 Malody V 实测表 Standard 组 C-NORMAL 列；萌百 A-E 表**整表弃用**——其 B/C/D 列实为本表 C/D/E 列错标） | 头尾各计一次判定（尾窗暂按同表，待实机校准） | (BEST + 0.75·COOL + 0.4·GOOD) / N |
+| **Malody B判**（手机判，段位标准） | BEST ±54 / COOL ±94 / GOOD ±139 / MISS ±181+（同表 Standard 组 B-EASY+ 列） | 同上 | 同上 |
 
-OD 一律取自 .osu 文件的 OverallDifficulty 字段（各段位包不预设 OD）；Malody 两档为固定窗口，与谱面无关。Malody 判定窗缩放（加速 mod，文章表 2-6）：1.5×速/RUSH → 窗 ×2/3，1.2×速/DASH → 窗 ×5/6——osu 回放重判不直接用到，备查。Malody A-E 表经文章表 2-4 复核与萌百完全一致（BEST：A52/B44/C36/D28/E20）；文章图 2-74 有"PC B判"字样（v2 时代口径）与本任务 C=电脑/B=手机 的映射相抵，按用户裁定执行，如需终验以实机判定设置截图为准。
+OD 一律取自 .osu 文件的 OverallDifficulty 字段（各段位包不预设 OD）；Malody 两档为固定窗口，与谱面无关。Malody 判定窗缩放（加速 mod，文章表 2-6）：1.5×速/RUSH → 窗 ×2/3，1.2×速/DASH → 窗 ×5/6——osu 回放重判不直接用到，备查。~~Malody A-E 表经文章表 2-4 复核与萌百完全一致~~（2026-10-05 弃用：萌百表与文章表 2-4 同源错位，其 B/C/D 列实为实测表 C/D/E 列，两处交叉复核不构成验证；判定窗以用户提供的 Malody V 实测表为唯一来源）。文章图 2-74 有"PC B判"字样（v2 时代口径）与本任务 C=电脑/B=手机 的映射相抵，按用户裁定执行，如需终验以实机判定设置截图为准。
 
 来源：osu wiki（Judgement/osu!mania、Accuracy、Hit_object/Hold_note，2026-10-03 抓取）；Malody acc 公式经真实成绩实测严格成立（知乎 p/704902100）。
 
@@ -105,7 +105,7 @@ OD 一律取自 .osu 文件的 OverallDifficulty 字段（各段位包不预设 
 ## 8. 决策记录
 
 - 2026-10-03：LN v2 过段挂 stb（"scorev2主要影响的是300还是320的判定区间，ln段的过段应该还是stb"）；SV2 独立成一种判定体系。
-- 2026-10-03：C判/B判分歧是 Malody v2 时代问题；v3 手机电脑统一 A-E 五档，手机宽松 B、电脑严格 C（窗口取萌百表）。
+- 2026-10-03：C判/B判分歧是 Malody v2 时代问题；v3 手机电脑统一 A-E 五档，手机宽松 B、电脑严格 C（~~窗口取萌百表~~ → 2026-10-05 改用用户提供的 Malody V 实测表 Standard 组，萌百整表弃用）。
 - 2026-10-03：过段口径 = 全曲整体（马拉松整体过段）。
 - 2026-10-03：判定体系拆为五种：stb / stb(scorev2) / lzr / Malody C判 / Malody B判，全部计算并展示。
 - 2026-10-03（修订）：各包无固定 OD，OD 一律从 .osu 读取（包描述中的 OD/HP 仅为背景）；Malody 两档固定窗。
@@ -116,7 +116,7 @@ OD 一律取自 .osu 文件的 OverallDifficulty 字段（各段位包不预设 
 
 ## 9. 参考与实现期待核实
 
-参考：osu wiki 三页（窗口/acc/LN）；B站 cv15316319（Malody v3 官方）；知乎 p/704902100（Malody acc 公式实测）；萌百 Malody 词条（A-E 判定表）；osu 论坛帖 2226317（Signicial）、1803173（Celestial）；B站 opus/1140164949285273625（判定与评级文章）；prior art：uzxn/acc、uzxn/osu-split、Crazy-Bull/osr2mr、ppy/osu-tools。
+参考：osu wiki 三页（窗口/acc/LN）；B站 cv15316319（Malody v3 官方）；知乎 p/704902100（Malody acc 公式实测）；萌百 Malody 词条（A-E 判定表，**已弃用——错位数据**）；osu 论坛帖 2226317（Signicial）、1803173（Celestial）；B站 opus/1140164949285273625（判定与评级文章，其表 2-4 与萌百同源、判定窗口部分不可信）；prior art：uzxn/acc、uzxn/osu-split、Crazy-Bull/osr2mr、ppy/osu-tools。
 
 实现期待核实：lazer 窗口对 ppy/osu `ManiaHitWindows.cs`（已读全文，窗口=floor(分段线性公式)+0.5）；Malody LN 尾窗（现按同表）；stable notelock 精确行为；LZMA 解码器已定案（vendor：nmrugg/LZMA-js 的 lzma-d.js，MIT，ESM 垫片改造）；osu!std 转换图特殊窗口（遇转换图报不支持）。
 

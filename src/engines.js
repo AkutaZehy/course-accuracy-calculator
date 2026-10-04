@@ -18,9 +18,12 @@ export function osuWindows(engine, od, rate) {
   return { p: f(base.p), g: f(base.g), gd: f(base.gd), ok: f(base.ok), meh: f(base.meh), miss: f(base.miss) };
 }
 
+// Malody V 判定表·Standard 组（2026-10-05 用户提供实测表，萌百 A-E 表整表弃用——其 B/C/D 列实为本表 C/D/E 列错标）：
+// 五列 A-EASY 64/104/149/191+ · B-EASY+ 54/94/139/181+ · C-NORMAL 44/84/129/171+ · D-NORMAL+ 36/76/121/163+ · E-HARD 28/68/113/155+
+// C判（电脑默认）= C-NORMAL 列，B判（手机默认）= B-EASY+ 列；MISS 带 + 表示至少该宽
 export const MALODY_TABLE = {
-  C: { best: 36, cool: 76, good: 110, miss: 150 },
-  B: { best: 44, cool: 84, good: 118, miss: 150 },
+  C: { best: 44, cool: 84, good: 129, miss: 171 },
+  B: { best: 54, cool: 94, good: 139, miss: 181 },
 };
 export function malodyWindows(level, rate) {
   // Malody 判定窗为墙钟口径（文章：1.5×速→×2/3）；回放是 track 时间，折算后用基础值
