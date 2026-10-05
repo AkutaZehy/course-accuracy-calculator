@@ -10,8 +10,10 @@ function perfectWindow(od) { return od <= 5 ? 22.4 - 0.6 * od : 24.9 - 1.1 * od;
 // 窗口（track 时间）：三套 osu 引擎 ×rate（lazer 源码 speedMultiplier；stable 墙钟固定窗
 // 折算到 track 亦为 ×rate）；Malody 用基础值（文章"1.5×速→窗×2/3"为墙钟口径，track 下抵消）。
 export function osuWindows(engine, od, rate) {
+  // MAX 窗：stb 与 sv2 用 stable 固定 ±16（wiki Hold_note：ScoreV2 只改头尾分判+尾×1.5，不改基础窗）；
+  // lzr 用 lazer 分段线性窗（ppy/osu ManiaHitWindows）
   const base = {
-    p: engine === 'stb' ? 16 : perfectWindow(od),
+    p: engine === 'lzr' ? perfectWindow(od) : 16,
     g: 64 - 3 * od, gd: 97 - 3 * od, ok: 127 - 3 * od, meh: 151 - 3 * od, miss: 188 - 3 * od,
   };
   const f = x => Math.floor(x * rate) + 0.5;

@@ -29,8 +29,8 @@
 | 体系 | 判定窗（ms） | LN 结算 | acc 公式 |
 |---|---|---|---|
 | **stb**（stable / ScoreV1） | MAX ±16 固定；300=64−3OD；200=97−3OD；100=127−3OD；50=151−3OD；miss=188−3OD。DT/HT 不缩放窗口。实际窗口较公式宽 0.5ms（hit error 四舍五入、上限截断） | LN = **头+尾偏移合并单判定**（两偏移求和后对双倍阈值，等价于均值对普通窗口；2026-10-03 用户定版：stable 从无尾判）：PERFECT 需头≤1.2×MAX上限且合计≤2.4×；GREAT 1.1/2.2；GOOD、OK 1/2；其余非 miss 为 MEH；中途松手最高 MEH；晚于 MEH 释放=miss。N = rice + LN | 分母 300N；MAX 计 300（与 300 同权） |
-| **stb (scorev2)**（stable 的 SV2 mod） | 同 stb，但 MAX 窗随 OD：OD≤5 → 22.4−0.6OD；OD≥5 → 24.9−1.1OD（OD8≈16.1） | 头尾独立判定，尾仅看释放误差、尾窗 ×1.5；中途松手尾封顶 MEH | 同 stb，但 MAX 权重=305（分子分母同步） |
-| **lzr**（lazer） | SV2 式（PERFECT 随 OD 等；开工时对 ppy/osu 源码 `ManiaHitWindows.cs` 核对） | 头尾独立双判定（references 七对实证：lazer 导出 osr 内嵌判定数 = rice+2×LN，7/7）；尾窗 ×1.5（文章注：松慢比松早宽 1.5 倍——不对称，实现时以客户端行为校准）；hold break 尾封顶 MEH 且不占额外判定 | (320·MAX+300·300+200·200+100·100+50·50) / 320N，N 含 LN 尾 |
+| **stb (scorev2)**（stable 的 SV2 mod） | 同 stb：MAX ±16 固定、其余 64−3OD 系（wiki Hold_note：ScoreV2 改头尾分判与尾窗 ×1.5，**不改基础窗**——2026-10-05 修正，曾误给 SV2 式分段线性 MAX 窗） | 头尾独立判定，尾仅看释放误差、尾窗 ×1.5；中途松手尾封顶 MEH | 同 stb，但 MAX 权重=305（分子分母同步） |
+| **lzr**（lazer） | lazer 分段线性：OD≤5 → 22.4−0.6OD；OD≥5 → 24.9−1.1OD（ppy/osu `ManiaHitWindows.cs`；与 sv2 的差异即此 MAX 窗） | 头尾独立双判定（references 实证：lazer 导出 osr 内嵌判定数 = rice+2×LN 全中）；尾窗 ×1.5；hold break 尾封顶 MEH 且不占额外判定 | (305·MAX+300·300+200·200+100·100+50·50) / 305N，N 含 LN 尾（**2026-10-05 修正**：wiki Accuracy 页"ScoreV2 increases…to 305"+`ManiaScoreProcessor.GetBaseScoreForResult(Perfect)=305` 双源；此前 320 系讹传无出处） |
 | **Malody C判**（电脑判，段位标准） | BEST ±44 / COOL ±84 / GOOD ±129 / MISS ±171+（固定，不随谱面；2026-10-05 定版：用户提供的 Malody V 实测表 Standard 组 C-NORMAL 列；萌百 A-E 表**整表弃用**——其 B/C/D 列实为本表 C/D/E 列错标） | 头尾各计一次判定（尾窗暂按同表，待实机校准） | (BEST + 0.75·COOL + 0.4·GOOD) / N |
 | **Malody B判**（手机判，段位标准） | BEST ±54 / COOL ±94 / GOOD ±139 / MISS ±181+（同表 Standard 组 B-EASY+ 列） | 同上 | 同上 |
 
