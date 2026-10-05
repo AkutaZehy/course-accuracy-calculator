@@ -1347,14 +1347,17 @@ function judgeOsuSystem(notes, w, engine) {
     } else if (engine === 'stb') {
       if (n.press === null) { push(n.idx, 's', 'miss'); continue; }
       const headErr = n.press - n.t;
-      const sumErr = headErr + (n.release - n.t); // 头+尾偏移之和（用户定版：合并单判）
+      const tailErr = n.release - n.end; // 尾偏移锚定 LN 结束时间（曾误锚头时间致全体 MEH，2026-10-05 修复）
+      const sumErr = headErr + tailErr; // 头+尾偏移之和（用户定版：合并单判，梯级 ×2.x 即均值口径）
       if (n.release > n.end + w.meh) { push(n.idx, 's', 'miss'); continue; }
       const ladder = [['p', 1.2, 2.4], ['g', 1.1, 2.2], ['gd', 1.0, 2.0], ['ok', 1.0, 2.0]];
       let j = 'meh';
       for (const [name, f1, f2] of ladder) {
         if (Math.abs(headErr) <= f1 * w[name] && Math.abs(sumErr) <= f2 * w[name]) { j = name; break; }
       }
-      if (n.release < n.end && j !== 'meh' && j !== 'miss') j = 'meh'; // 中途松手最高 MEH
+      // 中途弃条封顶 MEH：提前量超过 MEH 窗才算断条（对称于晚松 >end+MEH=miss）；
+      // 曾误用 release<end 全判 MEH——把提前 2~139ms 的正常尾判全打成断条（2026-10-05 修复）
+      if (n.release < n.end - w.meh) j = 'meh';
       push(n.idx, 's', j);
     } else {
       // sv2 / lzr：头尾独立双判（lazer 源码语义）
@@ -1401,12 +1404,13 @@ function countMalody(recs) {
 
 function osuAcc(engine, c) {
   const n = c.p + c.g + c.gd + c.ok + c.meh + c.miss;
+  // 权重：stb=ScoreV1（MAX 300）；sv2 与 lzr 同为 ScoreV2 计分（MAX 305——wiki Accuracy 页
+  // "ScoreV2 increases the weighting of rainbow 300s to 305"；lazer 源码 ManiaScoreProcessor
+  // GetBaseScoreForResult(Perfect)=305，2026-10-05 修正，此前 320 系讹传并无出处）
   const num = engine === 'stb'
     ? 300 * (c.p + c.g) + 200 * c.gd + 100 * c.ok + 50 * c.meh
-    : engine === 'sv2'
-      ? 305 * c.p + 300 * c.g + 200 * c.gd + 100 * c.ok + 50 * c.meh
-      : 320 * c.p + 300 * c.g + 200 * c.gd + 100 * c.ok + 50 * c.meh;
-  const den = engine === 'stb' ? 300 * n : engine === 'sv2' ? 305 * n : 320 * n;
+    : 305 * c.p + 300 * c.g + 200 * c.gd + 100 * c.ok + 50 * c.meh;
+  const den = engine === 'stb' ? 300 * n : 305 * n;
   return { n, acc: den ? num / den : 0 };
 }
 
@@ -1665,7 +1669,7 @@ function md5(bytes) {
 const SYS_LABELS = [
   ['stb', 'stb（stable / ScoreV1）'],
   ['sv2', 'stb + ScoreV2（MAX=305）'],
-  ['lzr', 'lzr（lazer，MAX=320）'],
+  ['lzr', 'lzr（lazer）'],
   ['mc', 'Malody C判（电脑判）'],
   ['mb', 'Malody B判（手机判）'],
 ];

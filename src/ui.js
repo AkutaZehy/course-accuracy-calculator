@@ -48,7 +48,7 @@ function md5(bytes) {
 const SYS_LABELS = [
   ['stb', 'stb（stable / ScoreV1）'],
   ['sv2', 'stb + ScoreV2（MAX=305）'],
-  ['lzr', 'lzr（lazer，MAX=320）'],
+  ['lzr', 'lzr（lazer）'],
   ['mc', 'Malody C判（电脑判）'],
   ['mb', 'Malody B判（手机判）'],
 ];

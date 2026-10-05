@@ -8,7 +8,7 @@ osu!mania 段位成绩计算器：输入谱面（.osu）与回放（.osr），�
 |---|---|---|---|
 | stb（stable / ScoreV1） | MAX 计 300 | 头尾合并单判 | MAX ±16.5 固定，其余 64−3OD 系 |
 | stb + ScoreV2（MAX=305） | MAX 计 305 | 头尾独立判定 | 同上，MAX 分段线性 |
-| lzr（lazer，MAX=320） | MAX 计 320 | 头尾独立、尾窗 ×1.5 | floor(分段线性×倍率)+0.5 |
+| lzr（lazer） | MAX 计 305 | 头尾独立、尾窗 ×1.5 | floor(分段线性×倍率)+0.5 |
 | Malody C判（电脑判） | BEST=1 / COOL=0.75 / GOOD=0.4 | 头尾各计一次 | ±44/84/129/171 ms |
 | Malody B判（手机判） | 同上 | 同上 | ±54/94/139/181 ms |
 
