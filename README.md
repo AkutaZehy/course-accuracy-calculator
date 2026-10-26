@@ -18,11 +18,13 @@ osu!mania 段位成绩计算器：输入谱面（.osu）与回放（.osr），�
 
 | 包 | 门槛 |
 |---|---|
-| Dan ~ REFORM ~ | stb ≥96%（intro 95%） |
+| Dan ~ REFORM ~ | stb ≥96% |
 | 4K LN Dan Courses v2（underjoy） | ScoreV2 ≥97%（2023-01-26 起） |
-| Dan: Signicial's | stb ≥96%（进阶/精通分档见 TASK.md） |
+| Dan: Signicial's | stb ≥96% |
 | Malody 4K Regular Dans v3 | C判 ≥95% 与 B判 ≥95% 分别判定 |
 | Dan: Celestial | 分谱制，每谱 stb ≥97% / lzr ≥96% |
+
+表内门槛是工具当前实际判定的档位，各包中尚未实现的门槛见 [TASK.md §4](TASK.md#4-段位包与-course-分类)。
 
 合谱（马拉松）自动按空隙切四段，输出每段单曲 acc 与累计 sumup。非段位谱输出五体系计算值。降难（NF/EZ/HT/DC）、不可控（Random）、自动（Auto）类 mod 会禁用过段判定，各体系计算值照常输出。
 
@@ -43,7 +45,7 @@ node test/harness.mjs      # 八份真实回放夹具：lzr 重判计数 vs 内�
 node test/smoke-ui.mjs     # bundle 冒烟：无 DOM 执行/双实现一致性/计数抽查/DOM id
 ```
 
-`references/` 为本地对账夹具（含个人回放，不入库，见 `.gitignore`）。设计文档与全部规格决策见 [TASK.md](TASK.md)。
+`references/` 为本地对账夹具（含个人回放，不入库，见 `.gitignore`）。规格见 [TASK.md](TASK.md)，规格的形成过程见 [DECISIONS.md](DECISIONS.md)。
 
 ## 机制要点
 
@@ -51,6 +53,14 @@ node test/smoke-ui.mjs     # bundle 冒烟：无 DOM 执行/双实现一致性/�
 - lazer 回放在 onlineId 后追加 `LegacyReplaySoloScoreInfo` 尾块（ppy/osu `LegacyScoreEncoder`）：mods 含设置（自定义变速倍率在此）、判定统计、暂停时间戳
 - notelock（`OrderedHitPolicy`：可击范围被下一 note 开始时间截断）与 LN 尾判（±1.5×miss 内首释放、偏移 /1.5 判定、断裂封顶 MEH）按 ppy/osu 源码实现
 - 窗口随变速倍率缩放（倍率优先取尾块，缺省 DC/HT=0.75、DT/NC=1.5）；Mirror 自动镜像轨道后对齐
+
+## 已知限制
+
+- 工具是重判器：需要配对的 `.osu` 与 `.osr` 文件；回放必须含完整按键时间线。
+- `references/` 八对夹具均为 lazer 导出；stb 引擎的校准夹具待补。
+- Malody LN 尾窗按同表推定，未与实机判定设置逐档核对。
+- lazer 的 Difficulty Adjustment 无独立位掩码；未以 EZ 位导出时不可检测。
+- osu!std 转换图的特殊窗口未建模；遇到转换图不保证结果正确。
 
 ## 参考文档
 
